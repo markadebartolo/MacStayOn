@@ -1,19 +1,18 @@
 import Foundation
 import IOKit.hid
 
-/// Polls Apple's lid-angle sensor (`las`) for MacBooks that expose it.
-/// Degrees: ~0 closed → higher when open (about 90–120 upright/open).
+/// Streams Apple's lid-angle sensor (`las`) via HID input reports.
+/// Degrees: ~0 closed → higher when open (~90–120 upright).
 final class LidAngleMonitor {
-    /// Called on the main queue whenever the sampled angle changes.
+    /// Called on the main queue whenever the angle changes.
     var onAngleChange: ((Int) -> Void)?
 
-    /// True when this Mac exposes a readable lid-angle HID element.
     private(set) var isAvailable = false
 
     private var manager: IOHIDManager?
     private var device: IOHIDDevice?
-    private var angleElement: IOHIDElement?
-    private var timer: Timer?
+    private var reportBuffer: UnsafeMutablePointer<UInt8>?
+    private let reportBufferSize = 64
     private var lastAngle: Int?
 
     func start() {
@@ -21,9 +20,9 @@ final class LidAngleMonitor {
         let mgr = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
         manager = mgr
         let matching: [String: Any] = [
-            kIOHIDVendorIDKey: 1452, // Apple
-            kIOHIDPrimaryUsagePageKey: 0x20, // Sensor
-            kIOHIDPrimaryUsageKey: 138, // Orientation / las
+            kIOHIDVendorIDKey: 1452,
+            kIOHIDPrimaryUsagePageKey: 0x20,
+            kIOHIDPrimaryUsageKey: 138,
         ]
         IOHIDManagerSetDeviceMatching(mgr, matching as CFDictionary)
         guard IOHIDManagerOpen(mgr, IOOptionBits(kIOHIDOptionsTypeNone)) == kIOReturnSuccess else {
@@ -37,58 +36,70 @@ final class LidAngleMonitor {
             return
         }
         device = found
-        _ = IOHIDDeviceOpen(found, IOOptionBits(kIOHIDOptionsTypeNone))
 
-        if let elements = IOHIDDeviceCopyMatchingElements(found, nil, IOOptionBits(kIOHIDOptionsTypeNone)) as? [IOHIDElement] {
-            for el in elements {
-                let page = IOHIDElementGetUsagePage(el)
-                let usage = IOHIDElementGetUsage(el)
-                // Coarse degrees 0…360 — reliable via GetValue on this hardware.
-                if page == 0x20, usage == 1151 {
-                    angleElement = el
-                }
-            }
-        }
-
-        guard angleElement != nil else {
+        // Non-seize open is enough for input reports on this sensor.
+        guard IOHIDDeviceOpen(found, IOOptionBits(kIOHIDOptionsTypeNone)) == kIOReturnSuccess else {
             isAvailable = false
             return
         }
-        isAvailable = true
 
-        let timer = Timer(timeInterval: 0.15, repeats: true) { [weak self] _ in
-            self?.poll()
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        self.timer = timer
-        poll()
+        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: reportBufferSize)
+        reportBuffer = buffer
+        IOHIDDeviceRegisterInputReportCallback(
+            found,
+            buffer,
+            reportBufferSize,
+            { context, _, _, _, reportID, report, reportLength in
+                let monitor = Unmanaged<LidAngleMonitor>.fromOpaque(context!).takeUnretainedValue()
+                monitor.handleReport(reportID: reportID, report: report, length: reportLength)
+            },
+            Unmanaged.passUnretained(self).toOpaque()
+        )
+        IOHIDDeviceScheduleWithRunLoop(found, CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue)
+        IOHIDManagerScheduleWithRunLoop(mgr, CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue)
+        isAvailable = true
     }
 
     func stop() {
-        timer?.invalidate()
-        timer = nil
         if let device {
+            IOHIDDeviceUnscheduleFromRunLoop(device, CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue)
             IOHIDDeviceClose(device, IOOptionBits(kIOHIDOptionsTypeNone))
         }
         device = nil
-        angleElement = nil
         if let manager {
+            IOHIDManagerUnscheduleFromRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue)
             IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
         }
         manager = nil
+        reportBuffer?.deallocate()
+        reportBuffer = nil
         lastAngle = nil
         isAvailable = false
     }
 
-    private func poll() {
-        guard let device, let angleElement else { return }
-        let ptr = UnsafeMutablePointer<Unmanaged<IOHIDValue>>.allocate(capacity: 1)
-        defer { ptr.deallocate() }
-        guard IOHIDDeviceGetValue(device, angleElement, ptr) == kIOReturnSuccess else { return }
-        let degrees = Int(IOHIDValueGetIntegerValue(ptr.pointee.takeUnretainedValue()))
-        if lastAngle == degrees { return }
+    private func handleReport(reportID: UInt32, report: UnsafeMutablePointer<UInt8>, length: CFIndex) {
+        // Report ID 1 = coarse angle. On this Mac the buffer is `[0x01, angleLo, angleHi]`
+        // (report ID included). Other machines may omit the ID byte.
+        guard reportID == 1, length >= 2 else { return }
+
+        let degrees: Int
+        if report[0] == 1, length >= 3 {
+            degrees = (Int(report[1]) | (Int(report[2]) << 8)) & 0x1FF
+        } else {
+            degrees = (Int(report[0]) | (Int(report[1]) << 8)) & 0x1FF
+        }
+
+        guard degrees <= 360 else { return }
+        guard lastAngle != degrees else { return }
         lastAngle = degrees
-        onAngleChange?(degrees)
+
+        if Thread.isMainThread {
+            onAngleChange?(degrees)
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.onAngleChange?(degrees)
+            }
+        }
     }
 
     deinit {
