@@ -37,8 +37,19 @@ final class SleepAssertionManager: ObservableObject {
     private var isActivating = false
     private var didFinishLaunchSetup = false
     private let lidMonitor = LidMonitor()
+    private let lidAngleMonitor = LidAngleMonitor()
     private var lidWasClosedWhileEnabled = false
     private var isPromptingLidOpen = false
+
+    /// Last sampled lid angle (degrees). Nil until the sensor reports.
+    private var lastLidAngle: Int?
+    /// After flashing once for a close gesture, wait until the lid opens again.
+    private var didFlashForCurrentClose = false
+
+    /// Sensor degrees at/below which we warn (calibrated with user estimate).
+    private static let lidWarnAngleDegrees = 66
+    /// Must reopen past this before another warn can fire (hysteresis).
+    private static let lidWarnResetAngleDegrees = 80
 
     private var stateDir: URL {
         FileManager.default.temporaryDirectory
@@ -316,33 +327,82 @@ final class SleepAssertionManager: ObservableObject {
     private func startSessionHelpers() {
         lidWasClosedWhileEnabled = false
         isPromptingLidOpen = false
+        lastLidAngle = nil
+        didFlashForCurrentClose = false
         analytics.start()
         lidMonitor.onClamshellChange = { [weak self] closed in
             self?.handleClamshellChange(closed: closed)
         }
         lidMonitor.start()
+        startLidAngleWatch()
     }
 
     private func stopSessionHelpers(retainAnalytics: Bool) {
         lidMonitor.stop()
         lidMonitor.onClamshellChange = nil
+        stopLidAngleWatch()
+        ScreenFlashAlert.cancel()
         if retainAnalytics {
             analytics.stopAndRetainSummary()
         } else {
             analytics.clear()
         }
         lidWasClosedWhileEnabled = false
+        lastLidAngle = nil
+        didFlashForCurrentClose = false
+    }
+
+    private func startLidAngleWatch() {
+        lidAngleMonitor.onAngleChange = { [weak self] degrees in
+            self?.handleLidAngle(degrees)
+        }
+        lidAngleMonitor.start()
+    }
+
+    private func stopLidAngleWatch() {
+        lidAngleMonitor.onAngleChange = nil
+        lidAngleMonitor.stop()
+    }
+
+    private func handleLidAngle(_ degrees: Int) {
+        guard isEnabled else { return }
+        let previous = lastLidAngle
+        lastLidAngle = degrees
+
+        // Near-shut: drop any leftover flash and let Stay Awake run normally.
+        if degrees <= 8 {
+            ScreenFlashAlert.cancel()
+        }
+
+        // Reset warn latch once the lid is opened past hysteresis.
+        if degrees >= Self.lidWarnResetAngleDegrees {
+            didFlashForCurrentClose = false
+        }
+
+        // Crossing down through the warn angle while Stay Awake is on and lid was open.
+        let crossedDown = (previous == nil || previous! > Self.lidWarnAngleDegrees)
+            && degrees <= Self.lidWarnAngleDegrees
+        guard crossedDown else { return }
+        guard !lidWasClosedWhileEnabled else { return }
+        guard !didFlashForCurrentClose else { return }
+
+        didFlashForCurrentClose = true
+        ScreenFlashAlert.flashStayAwakeWarning()
     }
 
     private func handleClamshellChange(closed: Bool) {
         guard isEnabled else { return }
         if closed {
             lidWasClosedWhileEnabled = true
+            // Closing warning is only while the lid is in motion — stop once shut.
+            ScreenFlashAlert.cancel()
             return
         }
         guard lidWasClosedWhileEnabled, !isPromptingLidOpen else { return }
         lidWasClosedWhileEnabled = false
         isPromptingLidOpen = true
+        // Latch also clears via angle hysteresis when past 80°.
+        didFlashForCurrentClose = false
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
             guard let self, self.isEnabled else {
