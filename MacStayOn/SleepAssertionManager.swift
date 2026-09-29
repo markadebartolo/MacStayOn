@@ -14,11 +14,21 @@ import IOKit.pwr_mgt
 final class SleepAssertionManager: ObservableObject {
     private static let defaultsKey = "macStayOnEnabled"
     private static let savedPrevKey = "savedDisablesleepValue"
+    private static let guardEnabledKey = "macStayOnGuardEnabled"
+    private static let batteryFloorKey = "macStayOnBatteryFloor"
     private static let assertionName = "MacStayOn: keep system awake with lid closed" as CFString
 
     @Published private(set) var isEnabled: Bool = false
     @Published private(set) var statusDetail: String?
     @Published private(set) var lastError: String?
+    @Published private(set) var guardEnabled: Bool
+    @Published private(set) var batteryFloor: Int
+    @Published private(set) var batteryPercent: Int?
+    @Published private(set) var onACPower: Bool = false
+    @Published private(set) var thermalLabel: String = "cool"
+
+    private var guardTimer: Timer?
+    private var guardTripping = false
 
     let analytics = SessionAnalytics()
 
@@ -40,7 +50,20 @@ final class SleepAssertionManager: ObservableObject {
     private var watchdogPidFile: URL { stateDir.appendingPathComponent("watchdog.pid") }
     private var enableScriptFile: URL { stateDir.appendingPathComponent("enable-watchdog.sh") }
 
+    init() {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: Self.guardEnabledKey) == nil {
+            guardEnabled = true
+        } else {
+            guardEnabled = defaults.bool(forKey: Self.guardEnabledKey)
+        }
+        let storedFloor = defaults.object(forKey: Self.batteryFloorKey) as? Int
+        batteryFloor = Self.clampFloor(storedFloor ?? 20)
+        startGuardMonitor()
+    }
+
     deinit {
+        guardTimer?.invalidate()
         if hasAssertion {
             IOPMAssertionRelease(assertionID)
         }
@@ -72,6 +95,23 @@ final class SleepAssertionManager: ObservableObject {
         } else {
             deactivate(persistOff: true)
         }
+    }
+
+    func setGuardEnabled(_ enabled: Bool) {
+        guardEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: Self.guardEnabledKey)
+        evaluateGuard()
+    }
+
+    func setBatteryFloor(_ percent: Int) {
+        let clamped = Self.clampFloor(percent)
+        batteryFloor = clamped
+        UserDefaults.standard.set(clamped, forKey: Self.batteryFloorKey)
+        evaluateGuard()
+    }
+
+    private static func clampFloor(_ percent: Int) -> Int {
+        min(50, max(10, percent))
     }
 
     /// Interactive Turn On from the menu: heat warning first, then admin/pmset flow.
@@ -329,6 +369,50 @@ final class SleepAssertionManager: ObservableObject {
 
     // MARK: - Status
 
+    private func startGuardMonitor() {
+        guardTimer?.invalidate()
+        let timer = Timer(timeInterval: 15, repeats: true) { [weak self] _ in
+            self?.evaluateGuard()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        guardTimer = timer
+        evaluateGuard()
+    }
+
+    /// While Stay Awake is on, turn it off if the battery is at or below the floor
+    /// (on battery only) or the Mac reports serious/critical thermal pressure.
+    private func evaluateGuard() {
+        let snapshot = Self.powerSnapshot()
+        onACPower = snapshot.onAC
+        batteryPercent = snapshot.percent
+        let thermal = ProcessInfo.processInfo.thermalState
+        switch thermal {
+        case .critical: thermalLabel = "critical heat"
+        case .serious: thermalLabel = "serious heat"
+        case .fair: thermalLabel = "warm"
+        default: thermalLabel = "cool"
+        }
+
+        guard isEnabled, guardEnabled, !guardTripping else { return }
+
+        if thermal == .serious || thermal == .critical {
+            tripGuard("Turned off — Mac reported \(thermalLabel). Unplug it from a confined space before turning Stay Awake back on.")
+            return
+        }
+        if !snapshot.onAC, let percent = snapshot.percent, percent <= batteryFloor {
+            tripGuard("Turned off — battery at \(percent)% (floor \(batteryFloor)%).")
+        }
+    }
+
+    private func tripGuard(_ message: String) {
+        guard isEnabled else { return }
+        guardTripping = true
+        setEnabled(false)
+        lastError = message
+        statusDetail = message
+        guardTripping = false
+    }
+
     private func refreshStatusDetail() {
         if let lastError {
             statusDetail = lastError
@@ -419,15 +503,33 @@ final class SleepAssertionManager: ObservableObject {
             .replacingOccurrences(of: "`", with: "\\`")
     }
 
-    private static func isOnACPower() -> Bool {
+    private struct PowerSnapshot {
+        var onAC: Bool
+        var percent: Int?
+    }
+
+    private static func powerSnapshot() -> PowerSnapshot {
         guard let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
               let list = IOPSCopyPowerSourcesList(info)?.takeRetainedValue() as? [CFTypeRef],
               let first = list.first,
-              let desc = IOPSGetPowerSourceDescription(info, first)?.takeUnretainedValue() as? [String: Any],
-              let state = desc[kIOPSPowerSourceStateKey] as? String
+              let desc = IOPSGetPowerSourceDescription(info, first)?.takeUnretainedValue() as? [String: Any]
         else {
-            return false
+            return PowerSnapshot(onAC: false, percent: nil)
         }
-        return state == kIOPSACPowerValue
+        let state = desc[kIOPSPowerSourceStateKey] as? String
+        let onAC = state == kIOPSACPowerValue
+        let current = (desc[kIOPSCurrentCapacityKey] as? NSNumber)?.intValue
+        let maxCap = (desc[kIOPSMaxCapacityKey] as? NSNumber)?.intValue
+        let percent: Int?
+        if let current, let maxCap, maxCap > 0 {
+            percent = Int((Double(current) / Double(maxCap) * 100).rounded())
+        } else {
+            percent = current
+        }
+        return PowerSnapshot(onAC: onAC, percent: percent)
+    }
+
+    private static func isOnACPower() -> Bool {
+        powerSnapshot().onAC
     }
 }

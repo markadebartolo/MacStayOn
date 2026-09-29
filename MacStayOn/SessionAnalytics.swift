@@ -14,6 +14,8 @@ struct AppUsageRow: Identifiable, Equatable {
     let isActiveNow: Bool
     /// False once the app process has quit; the duration is frozen.
     let isRunning: Bool
+    /// Recent clock-time spans, newest last. Example: "2:14–2:41 working".
+    let timeline: [String]
 }
 
 /// Tracks how long MacStayOn has been On and which apps were doing work.
@@ -28,12 +30,42 @@ final class SessionAnalytics: ObservableObject {
     @Published private(set) var topApps: [AppUsageRow] = []
     @Published private(set) var hasSummary = false
 
+    private struct Span {
+        var phase: String
+        var start: Date
+        var end: Date
+    }
+
     private struct Acc {
         var name: String
         var detail: String?
         var seconds: TimeInterval
         var backgroundSeconds: TimeInterval
         var lastActiveAt: Date?
+        var spans: [Span] = []
+
+        mutating func note(phase: String, at now: Date) {
+            if var last = spans.last, last.phase == phase {
+                last.end = now
+                spans[spans.count - 1] = last
+                return
+            }
+            if !spans.isEmpty {
+                spans[spans.count - 1].end = now
+            }
+            spans.append(Span(phase: phase, start: now, end: now))
+            if spans.count > 8 {
+                spans.removeFirst(spans.count - 8)
+            }
+        }
+
+        func timelineLines(now: Date) -> [String] {
+            spans.suffix(3).map { span in
+                let end = span.end
+                let endLabel = abs(now.timeIntervalSince(end)) < 2 ? "now" : SessionAnalytics.clock(end)
+                return "\(SessionAnalytics.clock(span.start))–\(endLabel) \(span.phase)"
+            }
+        }
     }
 
     private var sessionStartedAt: Date?
@@ -97,6 +129,17 @@ final class SessionAnalytics: ObservableObject {
         isLive = false
         hasSummary = false
     }
+
+    static func clock(_ date: Date) -> String {
+        clockFormatter.string(from: date)
+    }
+
+    private static let clockFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.timeStyle = .short
+        f.dateStyle = .none
+        return f
+    }()
 
     static func formatDuration(_ t: TimeInterval) -> String {
         let total = max(0, Int(t.rounded()))
@@ -219,14 +262,22 @@ final class SessionAnalytics: ObservableObject {
                 if !isFront {
                     acc.backgroundSeconds += delta
                 }
+                acc.note(phase: "working", at: now)
                 nextActive.insert(bid)
                 totals[bid] = acc
             } else if acc.seconds > 0 {
+                acc.note(phase: "stalled", at: now)
                 totals[bid] = acc
             } else if hasWindow {
-                // Seed the row so an open-but-quiet app can still appear once it works.
                 totals[bid] = acc
             }
+        }
+
+        let sampleNow = now
+        for key in Array(totals.keys) {
+            guard var acc = totals[key], acc.seconds > 0, !nextRunning.contains(key) else { continue }
+            acc.note(phase: "stopped", at: sampleNow)
+            totals[key] = acc
         }
 
         activeKeys = nextActive
@@ -247,7 +298,8 @@ final class SessionAnalytics: ObservableObject {
                     duration: acc.seconds,
                     wasBackgroundWork: acc.backgroundSeconds > acc.seconds * 0.5,
                     isActiveNow: isLive && activeKeys.contains(key),
-                    isRunning: running
+                    isRunning: running,
+                    timeline: acc.timelineLines(now: Date())
                 )
             }
             .sorted {

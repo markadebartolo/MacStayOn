@@ -62,6 +62,8 @@ private struct PopoverRoot: View {
             header
             Divider().opacity(0.35)
             statusBlock
+            Divider().opacity(0.35)
+            guardBlock
             if analytics.isLive || analytics.hasSummary {
                 Divider().opacity(0.35)
                 sessionBlock
@@ -182,6 +184,12 @@ private struct PopoverRoot: View {
                                 Text(rowStatus(row))
                                     .font(.system(size: 10, weight: .medium, design: .rounded))
                                     .foregroundStyle(row.isActiveNow ? Palette.sunBottom : Palette.secondary)
+                                ForEach(row.timeline, id: \.self) { line in
+                                    Text(line)
+                                        .font(.system(size: 10, weight: .regular, design: .rounded))
+                                        .foregroundStyle(Palette.secondary)
+                                        .lineLimit(1)
+                                }
                             }
                             Spacer(minLength: 0)
                             Text(SessionAnalytics.formatDuration(row.duration))
@@ -204,7 +212,7 @@ private struct PopoverRoot: View {
                 .buttonStyle(.plain)
             }
 
-            Text("Tracks focused apps and background agents across Desktops (bundle CPU + helpers). Rows stay once seen. Local only — you’ll be asked to turn Off when the lid opens.")
+            Text("Timeline is clock time for working, stalled, and stopped. Rows stay once seen. Local only — you’ll be asked to turn Off when the lid opens.")
                 .font(.system(size: 10.5, weight: .regular, design: .rounded))
                 .foregroundStyle(Palette.secondary.opacity(0.9))
                 .fixedSize(horizontal: false, vertical: true)
@@ -221,6 +229,59 @@ private struct PopoverRoot: View {
             return row.isRunning ? "idle" : "stopped"
         }
         return row.wasBackgroundWork ? "background work" : "this session"
+    }
+
+    private var guardBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle(isOn: Binding(
+                get: { sleepManager.guardEnabled },
+                set: { sleepManager.setGuardEnabled($0) }
+            )) {
+                Text("Heat & battery guard")
+                    .font(.system(size: 12.5, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Palette.text)
+            }
+            .toggleStyle(.switch)
+            .controlSize(.small)
+
+            HStack {
+                Text("Turn off below")
+                    .font(.system(size: 11.5, weight: .medium, design: .rounded))
+                    .foregroundStyle(Palette.secondary)
+                Spacer()
+                Stepper(value: Binding(
+                    get: { sleepManager.batteryFloor },
+                    set: { sleepManager.setBatteryFloor($0) }
+                ), in: 10...50, step: 5) {
+                    Text("\(sleepManager.batteryFloor)%")
+                        .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Palette.text)
+                        .monospacedDigit()
+                        .frame(minWidth: 36, alignment: .trailing)
+                }
+                .disabled(!sleepManager.guardEnabled)
+            }
+
+            Text(guardStatusLine)
+                .font(.system(size: 10.5, weight: .regular, design: .rounded))
+                .foregroundStyle(Palette.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+
+    private var guardStatusLine: String {
+        let battery: String
+        if let percent = sleepManager.batteryPercent {
+            battery = sleepManager.onACPower ? "\(percent)% on AC" : "\(percent)% on battery"
+        } else {
+            battery = sleepManager.onACPower ? "on AC" : "on battery"
+        }
+        if sleepManager.guardEnabled {
+            return "\(battery) · \(sleepManager.thermalLabel). Turns off on battery at \(sleepManager.batteryFloor)% or on serious heat."
+        }
+        return "\(battery) · \(sleepManager.thermalLabel). Guard is off."
     }
 
     private var controls: some View {
