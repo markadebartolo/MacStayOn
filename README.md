@@ -55,7 +55,7 @@ The popover matches what you see in the app — status first, then one primary a
 | **Status** | *Lid closed: normal sleep* or *Lid closed: stays awake* · AC or battery % |
 | **Primary button** | **Keep awake with lid closed** (orange) or **Restore normal sleep** when on |
 | **Heat & battery guard** | Toggle + *Restore normal sleep at* **10–50%** battery. Also turns off if macOS reports **serious heat**. Only while MacStayOn is on. |
-| **Lid-close flash** | While On, closing the lid past ~95° pulses the screen orange until the lid is fully shut, so you notice Stay Awake is still active. |
+| **Lid-close flash** | While On, closing the lid past ~85° pulses the screen orange until the lid is fully shut (or reopened past that angle). |
 | **This session** | Time awake (always visible). Expand to see apps that were working, timeline, and **Clear last session**. Collapsed by default. |
 | **Quit** | Restores sleep settings and exits |
 

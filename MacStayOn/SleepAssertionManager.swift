@@ -47,10 +47,9 @@ final class SleepAssertionManager: ObservableObject {
     private var didFlashForCurrentClose = false
 
     /// Sensor degrees at/below which we warn (higher = earlier while closing).
-    /// ~95° is shortly after leaving upright (~110–120° open).
-    private static let lidWarnAngleDegrees = 95
+    private static let lidWarnAngleDegrees = 85
     /// Must reopen past this before another warn can fire (hysteresis).
-    private static let lidWarnResetAngleDegrees = 110
+    private static let lidWarnResetAngleDegrees = 100
 
     private var stateDir: URL {
         FileManager.default.temporaryDirectory
