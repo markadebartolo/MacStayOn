@@ -46,14 +46,16 @@ security find-identity -v -p codesigning | grep "Developer ID Application"
 ```
 
 Copy the full quoted string, e.g.  
-`Developer ID Application: Mark DeBartolo (AB12CD34EF)`
+`Developer ID Application: Mark DeBartolo (QA3AY5HLGM)`
+
+The Xcode project is already set to automatic signing for team **QA3AY5HLGM** (Mark DeBartolo). A local `./scripts/build.sh` still builds unsigned. Notarization uses the Developer ID identity above, which is separate from the Apple Development certificate already on this Mac.
 
 ## Build, sign, notarize
 
 From the repo (after the one-time setup):
 
 ```bash
-export SIGN_IDENTITY="Developer ID Application: Mark DeBartolo (AB12CD34EF)"
+export SIGN_IDENTITY="Developer ID Application: Mark DeBartolo (QA3AY5HLGM)"
 export NOTARY_PROFILE="MacStayOn-notary"
 
 ./scripts/build.sh
