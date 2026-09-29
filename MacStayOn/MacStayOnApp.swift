@@ -160,7 +160,7 @@ private struct PopoverRoot: View {
 
             if analytics.topApps.isEmpty {
                 Text(analytics.isLive
-                      ? "Frontmost apps will show up as you work."
+                      ? "Apps doing work will show up — including agents behind other windows."
                       : "No app activity recorded.")
                     .font(.system(size: 11, weight: .regular, design: .rounded))
                     .foregroundStyle(Palette.secondary)
@@ -168,10 +168,17 @@ private struct PopoverRoot: View {
                 VStack(spacing: 6) {
                     ForEach(analytics.topApps) { row in
                         HStack(spacing: 8) {
-                            Text(row.name)
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
-                                .foregroundStyle(Palette.text)
-                                .lineLimit(1)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(row.name)
+                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    .foregroundStyle(Palette.text)
+                                    .lineLimit(2)
+                                if row.wasBackgroundWork {
+                                    Text("background work")
+                                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                                        .foregroundStyle(Palette.secondary)
+                                }
+                            }
                             Spacer(minLength: 0)
                             Text(SessionAnalytics.formatDuration(row.duration))
                                 .font(.system(size: 11, weight: .semibold, design: .rounded))
@@ -182,7 +189,18 @@ private struct PopoverRoot: View {
                 }
             }
 
-            Text("Tracks frontmost apps locally while On. You’ll be asked to turn Off when the lid opens.")
+            if !analytics.isLive && analytics.hasSummary {
+                Button {
+                    analytics.clear()
+                } label: {
+                    Text("Clear last session")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Palette.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+
+            Text("Tracks focused apps and background windows that are actively working. Local only — you’ll be asked to turn Off when the lid opens.")
                 .font(.system(size: 10.5, weight: .regular, design: .rounded))
                 .foregroundStyle(Palette.secondary.opacity(0.9))
                 .fixedSize(horizontal: false, vertical: true)
@@ -195,7 +213,7 @@ private struct PopoverRoot: View {
         VStack(spacing: 8) {
             Button {
                 if isOn {
-                    sleepManager.setEnabled(false)
+                    sleepManager.requestDisableFromUser()
                 } else {
                     sleepManager.requestEnableFromUser()
                 }

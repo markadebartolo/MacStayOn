@@ -1,83 +1,88 @@
 import AppKit
 import Combine
+import CoreGraphics
+import Darwin
 import Foundation
 
 struct AppUsageRow: Identifiable, Equatable {
-    var id: String { bundleID }
-    let bundleID: String
+    var id: String { key }
+    let key: String
     let name: String
     let duration: TimeInterval
+    /// True when this row was credited mainly for background CPU / windows, not focus.
+    let wasBackgroundWork: Bool
 }
 
-/// Tracks how long MacStayOn has been On and which apps were frontmost (local only).
+/// Tracks how long MacStayOn has been On and which apps were doing work —
+/// frontmost focus, on-screen windows, and background CPU (local only).
 final class SessionAnalytics: ObservableObject {
     @Published private(set) var isLive = false
     @Published private(set) var elapsed: TimeInterval = 0
     @Published private(set) var topApps: [AppUsageRow] = []
     @Published private(set) var hasSummary = false
 
+    private struct Acc {
+        var name: String
+        var seconds: TimeInterval
+        var backgroundSeconds: TimeInterval
+    }
+
     private var sessionStartedAt: Date?
-    private var totals: [String: (name: String, seconds: TimeInterval)] = [:]
-    private var currentBundleID: String?
-    private var currentName: String?
-    private var currentStartedAt: Date?
+    private var totals: [String: Acc] = [:]
     private var tick: Timer?
-    private var activateObserver: NSObjectProtocol?
+    private var lastSampleAt: Date?
+    private var lastCPU: [pid_t: Double] = [:]
+    private var ownPID: pid_t = 0
+
+    /// Minimum CPU seconds consumed in a sample window to count as "working".
+    private let cpuWorkThreshold: Double = 0.04
+    private let maxRows = 6
 
     func start() {
         tearDownObservers()
+        ownPID = ProcessInfo.processInfo.processIdentifier
         sessionStartedAt = Date()
+        lastSampleAt = Date()
+        lastCPU = [:]
         elapsed = 0
         totals = [:]
         topApps = []
         hasSummary = false
         isLive = true
-        beginFrontmost(NSWorkspace.shared.frontmostApplication)
 
-        activateObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didActivateApplicationNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] note in
-            let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
-            self?.beginFrontmost(app)
-        }
-
-        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
-            self?.refreshPublished()
+        let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.sample()
         }
         RunLoop.main.add(timer, forMode: .common)
         tick = timer
-        refreshPublished()
+        sample()
     }
 
     /// Stop tracking but keep last session stats visible in the popover.
     func stopAndRetainSummary() {
-        sealCurrent()
+        sample(final: true)
         tearDownObservers()
         if let sessionStartedAt {
             elapsed = Date().timeIntervalSince(sessionStartedAt)
         }
-        publishApps(from: totals)
+        publishApps()
         isLive = false
         hasSummary = elapsed > 0 || !topApps.isEmpty
         sessionStartedAt = nil
-        currentBundleID = nil
-        currentName = nil
-        currentStartedAt = nil
+        lastSampleAt = nil
+        lastCPU = [:]
     }
 
     func clear() {
         tearDownObservers()
         sessionStartedAt = nil
+        lastSampleAt = nil
+        lastCPU = [:]
         totals = [:]
         topApps = []
         elapsed = 0
         isLive = false
         hasSummary = false
-        currentBundleID = nil
-        currentName = nil
-        currentStartedAt = nil
     }
 
     static func formatDuration(_ t: TimeInterval) -> String {
@@ -91,60 +96,190 @@ final class SessionAnalytics: ObservableObject {
     }
 
     private func tearDownObservers() {
-        if let activateObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(activateObserver)
-            self.activateObserver = nil
-        }
         tick?.invalidate()
         tick = nil
     }
 
-    private func beginFrontmost(_ app: NSRunningApplication?) {
-        sealCurrent()
-        guard let app else { return }
-        let bid = app.bundleIdentifier ?? "unknown.\(app.processIdentifier)"
-        let name = app.localizedName ?? bid
-        currentBundleID = bid
-        currentName = name
-        currentStartedAt = Date()
-        refreshPublished()
-    }
-
-    private func sealCurrent() {
-        guard let bid = currentBundleID,
-              let name = currentName,
-              let started = currentStartedAt
-        else { return }
-        let delta = Date().timeIntervalSince(started)
-        var entry = totals[bid] ?? (name: name, seconds: 0)
-        entry.seconds += max(0, delta)
-        entry.name = name
-        totals[bid] = entry
-        currentStartedAt = Date()
-    }
-
-    private func refreshPublished() {
+    private func sample(final: Bool = false) {
+        let now = Date()
         if let sessionStartedAt {
-            elapsed = Date().timeIntervalSince(sessionStartedAt)
+            elapsed = now.timeIntervalSince(sessionStartedAt)
         }
-        var snapshot = totals
-        if let bid = currentBundleID,
-           let name = currentName,
-           let started = currentStartedAt
-        {
-            var entry = snapshot[bid] ?? (name: name, seconds: 0)
-            entry.seconds += max(0, Date().timeIntervalSince(started))
-            entry.name = name
-            snapshot[bid] = entry
+
+        let previous = lastSampleAt ?? now
+        let delta = max(0, now.timeIntervalSince(previous))
+        lastSampleAt = now
+        guard delta > 0 || final else {
+            publishApps()
+            return
         }
-        publishApps(from: snapshot)
+
+        let frontmost = NSWorkspace.shared.frontmostApplication
+        let frontPID = frontmost?.processIdentifier
+        let appsByPID = Dictionary(
+            uniqueKeysWithValues: NSWorkspace.shared.runningApplications
+                .filter { $0.activationPolicy == .regular && $0.processIdentifier != ownPID }
+                .map { ($0.processIdentifier, $0) }
+        )
+
+        let windows = Self.onScreenWindows()
+        var windowTitlesByPID: [pid_t: [String]] = [:]
+        var pidsWithWindows = Set<pid_t>()
+        for win in windows {
+            pidsWithWindows.insert(win.pid)
+            guard let title = win.title, !title.isEmpty else { continue }
+            windowTitlesByPID[win.pid, default: []].append(title)
+        }
+
+        var credited = Set<String>()
+
+        for (pid, app) in appsByPID {
+            let cpuNow = Self.cpuSeconds(for: pid)
+            let cpuPrev = lastCPU[pid]
+            if let cpuNow {
+                lastCPU[pid] = cpuNow
+            }
+
+            let cpuDelta: Double = {
+                guard let cpuNow, let cpuPrev else { return 0 }
+                return max(0, cpuNow - cpuPrev)
+            }()
+
+            let isFront = pid == frontPID
+            let hasWindow = pidsWithWindows.contains(pid)
+            let isWorking = cpuDelta >= cpuWorkThreshold
+            // Credit: focused, or on-screen and burning CPU (agent behind another window).
+            guard isFront || (hasWindow && isWorking) || (isWorking && cpuDelta >= cpuWorkThreshold * 2) else {
+                continue
+            }
+
+            let bid = app.bundleIdentifier ?? "pid.\(pid)"
+            let appName = app.localizedName ?? bid
+            let titles = Self.preferredTitles(windowTitlesByPID[pid] ?? [], appName: appName)
+
+            if titles.isEmpty {
+                credit(
+                    key: bid,
+                    name: appName,
+                    seconds: delta,
+                    background: !isFront,
+                    into: &credited
+                )
+            } else {
+                // Split the sample across distinct working windows of the same app.
+                let share = delta / Double(titles.count)
+                for title in titles {
+                    credit(
+                        key: "\(bid)|\(title)",
+                        name: "\(appName) — \(title)",
+                        seconds: share,
+                        background: !isFront,
+                        into: &credited
+                    )
+                }
+            }
+        }
+
+        // Drop stale CPU samples for exited processes.
+        let livePIDs = Set(appsByPID.keys)
+        lastCPU = lastCPU.filter { livePIDs.contains($0.key) }
+
+        publishApps()
     }
 
-    private func publishApps(from snapshot: [String: (name: String, seconds: TimeInterval)]) {
-        topApps = snapshot
-            .map { AppUsageRow(bundleID: $0.key, name: $0.value.name, duration: $0.value.seconds) }
+    private func credit(
+        key: String,
+        name: String,
+        seconds: TimeInterval,
+        background: Bool,
+        into credited: inout Set<String>
+    ) {
+        guard seconds > 0, !credited.contains(key) else { return }
+        credited.insert(key)
+        var acc = totals[key] ?? Acc(name: name, seconds: 0, backgroundSeconds: 0)
+        acc.name = name
+        acc.seconds += seconds
+        if background {
+            acc.backgroundSeconds += seconds
+        }
+        totals[key] = acc
+    }
+
+    private func publishApps() {
+        topApps = totals
+            .map { key, acc in
+                AppUsageRow(
+                    key: key,
+                    name: acc.name,
+                    duration: acc.seconds,
+                    wasBackgroundWork: acc.backgroundSeconds > acc.seconds * 0.5
+                )
+            }
             .sorted { $0.duration > $1.duration }
-            .prefix(5)
+            .prefix(maxRows)
             .map { $0 }
+    }
+
+    // MARK: - Window / CPU helpers
+
+    private struct WinInfo {
+        let pid: pid_t
+        let title: String?
+    }
+
+    private static func onScreenWindows() -> [WinInfo] {
+        guard let list = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements],
+            kCGNullWindowID
+        ) as? [[String: Any]] else {
+            return []
+        }
+
+        var result: [WinInfo] = []
+        result.reserveCapacity(list.count)
+        for info in list {
+            guard let pidNum = info[kCGWindowOwnerPID as String] as? NSNumber else { continue }
+            let layer = (info[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
+            // Normal app windows sit on layer 0.
+            guard layer == 0 else { continue }
+            let alpha = (info[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1
+            guard alpha > 0.05 else { continue }
+            let title = info[kCGWindowName as String] as? String
+            result.append(WinInfo(pid: pid_t(pidNum.int32Value), title: title))
+        }
+        return result
+    }
+
+    /// Prefer informative window titles; drop generic / empty / app-name-only duplicates.
+    private static func preferredTitles(_ titles: [String], appName: String) -> [String] {
+        let appLower = appName.lowercased()
+        var seen = Set<String>()
+        var out: [String] = []
+        for raw in titles {
+            let t = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !t.isEmpty else { continue }
+            let lower = t.lowercased()
+            if lower == appLower { continue }
+            // Skip tiny chrome titles.
+            if t.count < 2 { continue }
+            if seen.contains(lower) { continue }
+            seen.insert(lower)
+            out.append(t)
+            if out.count >= 3 { break }
+        }
+        return out
+    }
+
+    private static func cpuSeconds(for pid: pid_t) -> Double? {
+        var info = rusage_info_v2()
+        let status = withUnsafeMutablePointer(to: &info) { ptr -> Int32 in
+            ptr.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { rebound in
+                proc_pid_rusage(pid, RUSAGE_INFO_V2, rebound)
+            }
+        }
+        guard status == 0 else { return nil }
+        // ri_user_time / ri_system_time are nanoseconds on modern macOS.
+        let nanos = Double(info.ri_user_time) + Double(info.ri_system_time)
+        return nanos / 1_000_000_000.0
     }
 }
