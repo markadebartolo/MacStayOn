@@ -54,6 +54,8 @@ private struct MenuBarLabel: View {
 private struct PopoverRoot: View {
     @ObservedObject var sleepManager: SleepAssertionManager
     @ObservedObject var analytics: SessionAnalytics
+    /// Session app rows stay collapsed by default so the menu stays short.
+    @State private var sessionAppsExpanded = false
 
     private var isOn: Bool { sleepManager.isEnabled }
 
@@ -172,73 +174,97 @@ private struct PopoverRoot: View {
 
     private var sessionBlock: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text(analytics.isLive ? "This session" : "Last session")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Palette.secondary)
-                Spacer()
-                Text(SessionAnalytics.formatDuration(analytics.elapsed))
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(Palette.text)
-                    .monospacedDigit()
-            }
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    sessionAppsExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Palette.secondary)
+                        .rotationEffect(.degrees(sessionAppsExpanded ? 90 : 0))
 
-            if analytics.topApps.isEmpty {
-                Text(analytics.isLive
-                      ? "Apps doing work will show up — including agents behind other windows."
-                      : "No app activity recorded.")
-                    .font(.system(size: 11, weight: .regular, design: .rounded))
-                    .foregroundStyle(Palette.secondary)
-            } else {
-                VStack(spacing: 6) {
-                    ForEach(analytics.topApps) { row in
-                        HStack(spacing: 8) {
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(row.name)
-                                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                                    .foregroundStyle(Palette.text)
-                                    .lineLimit(1)
-                                if let detail = row.detail {
-                                    Text(detail)
-                                        .font(.system(size: 10, weight: .regular, design: .rounded))
-                                        .foregroundStyle(Palette.secondary)
+                    Text(analytics.isLive ? "This session" : "Last session")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Palette.secondary)
+
+                    if !analytics.topApps.isEmpty {
+                        Text("· \(analytics.topApps.count) app\(analytics.topApps.count == 1 ? "" : "s")")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(Palette.secondary)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Text(SessionAnalytics.formatDuration(analytics.elapsed))
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(Palette.text)
+                        .monospacedDigit()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(sessionAppsExpanded ? "Hide session apps" : "Show session apps")
+
+            if sessionAppsExpanded {
+                if analytics.topApps.isEmpty {
+                    Text(analytics.isLive
+                          ? "Apps doing work will show up — including agents behind other windows."
+                          : "No app activity recorded.")
+                        .font(.system(size: 11, weight: .regular, design: .rounded))
+                        .foregroundStyle(Palette.secondary)
+                } else {
+                    VStack(spacing: 6) {
+                        ForEach(analytics.topApps) { row in
+                            HStack(spacing: 8) {
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(row.name)
+                                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                                        .foregroundStyle(Palette.text)
                                         .lineLimit(1)
+                                    if let detail = row.detail {
+                                        Text(detail)
+                                            .font(.system(size: 10, weight: .regular, design: .rounded))
+                                            .foregroundStyle(Palette.secondary)
+                                            .lineLimit(1)
+                                    }
+                                    Text(rowStatus(row))
+                                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                                        .foregroundStyle(row.isActiveNow ? Palette.orange : Palette.secondary)
+                                    ForEach(row.timeline, id: \.self) { line in
+                                        Text(line)
+                                            .font(.system(size: 10, weight: .regular, design: .rounded))
+                                            .foregroundStyle(Palette.secondary)
+                                            .lineLimit(1)
+                                    }
                                 }
-                                Text(rowStatus(row))
-                                    .font(.system(size: 10, weight: .medium, design: .rounded))
-                                    .foregroundStyle(row.isActiveNow ? Palette.orange : Palette.secondary)
-                                ForEach(row.timeline, id: \.self) { line in
-                                    Text(line)
-                                        .font(.system(size: 10, weight: .regular, design: .rounded))
-                                        .foregroundStyle(Palette.secondary)
-                                        .lineLimit(1)
-                                }
+                                Spacer(minLength: 0)
+                                Text(SessionAnalytics.formatDuration(row.duration))
+                                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(Palette.secondary)
+                                    .monospacedDigit()
                             }
-                            Spacer(minLength: 0)
-                            Text(SessionAnalytics.formatDuration(row.duration))
-                                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                .foregroundStyle(Palette.secondary)
-                                .monospacedDigit()
                         }
                     }
                 }
-            }
 
-            if !analytics.isLive && analytics.hasSummary {
-                Button {
-                    analytics.clear()
-                } label: {
-                    Text("Clear last session")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Palette.secondary)
+                if !analytics.isLive && analytics.hasSummary {
+                    Button {
+                        analytics.clear()
+                    } label: {
+                        Text("Clear last session")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Palette.secondary)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-            }
 
-            Text("Timeline is clock time for working, stalled, and stopped. Rows stay once seen. Local only — you’ll be asked to turn Off when the lid opens.")
-                .font(.system(size: 10.5, weight: .regular, design: .rounded))
-                .foregroundStyle(Palette.secondary.opacity(0.9))
-                .fixedSize(horizontal: false, vertical: true)
+                Text("Timeline is clock time for working, stalled, and stopped. Rows stay once seen. Local only — you’ll be asked to turn Off when the lid opens.")
+                    .font(.system(size: 10.5, weight: .regular, design: .rounded))
+                    .foregroundStyle(Palette.secondary.opacity(0.9))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)

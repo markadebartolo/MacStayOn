@@ -387,6 +387,19 @@ final class SleepAssertionManager: ObservableObject {
         guard !didFlashForCurrentClose else { return }
 
         didFlashForCurrentClose = true
+        // File log helps verify crossing without relying on the screen alone.
+        let line = "WARN cross prev=\(previous.map(String.init) ?? "nil") now=\(degrees)\n"
+        if let data = line.data(using: .utf8) {
+            let url = URL(fileURLWithPath: "/tmp/macstayon-lid.log")
+            if FileManager.default.fileExists(atPath: url.path),
+               let handle = try? FileHandle(forWritingTo: url) {
+                defer { try? handle.close() }
+                handle.seekToEndOfFile()
+                handle.write(data)
+            } else {
+                try? data.write(to: url)
+            }
+        }
         ScreenFlashAlert.flashStayAwakeWarning()
     }
 
