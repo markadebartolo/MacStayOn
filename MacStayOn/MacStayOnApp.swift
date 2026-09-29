@@ -252,7 +252,7 @@ private struct PopoverRoot: View {
                 Stepper(value: Binding(
                     get: { sleepManager.batteryFloor },
                     set: { sleepManager.setBatteryFloor($0) }
-                ), in: 5...50, step: 5) {
+                ), in: 10...50, step: 5) {
                     Text("\(sleepManager.batteryFloor)%")
                         .font(.system(size: 11.5, weight: .semibold, design: .rounded))
                         .foregroundStyle(Palette.text)

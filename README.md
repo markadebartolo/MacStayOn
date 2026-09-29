@@ -73,7 +73,7 @@ Then Run (⌘R). No Dock icon (`LSUIElement`) — look for the **sun** / **moon*
 1. Status line — current mode  
 2. Detail — `disablesleep`, assertion, AC/battery  
 3. **This session / Last session** — time On plus apps that were working, with a clock-time timeline (`working`, `stalled`, `stopped`). Uses focus plus **app-family CPU** (`.app` helpers, process tree, and `Application Support/<App>/` workers — e.g. Claude Code), including other Mission Control Desktops; rows stay once seen. Local only.  
-4. **Heat & battery guard** — on by default. While Stay Awake is on, turns it off if the Mac reports serious or critical heat, or if it is on battery at or below the floor (default 20%, adjustable 5–50% in the menu).  
+4. **Heat & battery guard** — on by default. While Stay Awake is on, turns it off if the Mac reports serious or critical heat, or if it is on battery at or below the floor (default 20%, adjustable 10–50% in the menu).  
 5. **Turn On / Turn Off** — On shows a heat/enclosure warning first (Cancel stays Off; Continue goes to the admin password dialog). Off keeps the last-session summary in the menu by default; use **Clear last session** there to dismiss it.  
 6. **Quit MacStayOn** (restores prior sleep settings)
 

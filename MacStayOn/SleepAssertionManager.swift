@@ -111,7 +111,7 @@ final class SleepAssertionManager: ObservableObject {
     }
 
     private static func clampFloor(_ percent: Int) -> Int {
-        min(50, max(5, percent))
+        min(50, max(10, percent))
     }
 
     /// Interactive Turn On from the menu: heat warning first, then admin/pmset flow.
