@@ -240,7 +240,7 @@ final class SessionAnalytics: ObservableObject {
             .filter { $0.value.seconds > 0 }
             .map { key, acc in
                 let running = isLive && runningKeys.contains(key)
-                AppUsageRow(
+                return AppUsageRow(
                     key: key,
                     name: acc.name,
                     detail: acc.detail,
