@@ -1,0 +1,22 @@
+# Xcode / build
+build/
+DerivedData/
+*.xcuserdata
+*.xcworkspace/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+.swiftpm/
+.DS_Store
+
+# Built app (regenerate with scripts/build.sh)
+LidAwake.app/
+dist/
+
+# Unrelated local Chrome profile in this checkout
+chrome-profile/
+
+# Secrets / local
+*.p12
+*.mobileprovision
+.env
+.env.*
