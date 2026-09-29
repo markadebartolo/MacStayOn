@@ -1,0 +1,106 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing or new tag to release (e.g. v1.0.0)"
+        required: true
+        default: "v1.0.0"
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Build MacStayOn.app
+        run: ./scripts/build.sh
+      - name: Zip app
+        run: |
+          ditto -c -k --keepParent dist/MacStayOn.app MacStayOn-macos-arm64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64
+          path: MacStayOn-macos-arm64.zip
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Publish PCStayOn
+        run: >
+          dotnet publish windows/PCStayOn/PCStayOn.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -o publish
+      - name: Zip publish output
+        shell: pwsh
+        run: Compress-Archive -Path publish\* -DestinationPath PCStayOn-win-x64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: PCStayOn-win-x64.zip
+
+  release:
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="$INPUT_TAG"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+
+          NOTES="$(cat <<EOF
+          ## MacStayOn / PCStayOn ${TAG}
+
+          ### macOS — \`MacStayOn-macos-arm64.zip\`
+          1. Unzip
+          2. Right-click \`MacStayOn.app\` → **Open** (Gatekeeper)
+          3. Use the sun/moon menu bar icon
+
+          ### Windows — \`PCStayOn-win-x64.zip\`
+          1. Unzip
+          2. Run \`PCStayOn.exe\` (SmartScreen: More info → Run anyway)
+          3. Use the sun/moon tray icon → **Turn On**
+
+          **Note:** Closing the lid still blanks the built-in screen; the machine should keep running. Ventilate — do not leave it in a bag.
+          EOF
+          )"
+
+          MAC="artifacts/macos-arm64/MacStayOn-macos-arm64.zip"
+          WIN="artifacts/windows-x64/PCStayOn-win-x64.zip"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$MAC" "$WIN" --clobber
+            gh release edit "$TAG" --notes "$NOTES"
+          else
+            gh release create "$TAG" "$MAC" "$WIN" \
+              --title "MacStayOn / PCStayOn ${TAG}" \
+              --notes "$NOTES" \
+              --target "$GITHUB_SHA"
+          fi
