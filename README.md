@@ -17,6 +17,10 @@
   <img src="https://img.shields.io/badge/notarized-Developer%20ID-007AFF?style=flat-square&logo=apple&logoColor=white" alt="Notarized">
 </p>
 
+<p align="center">
+  <img src="docs/media/macstayon-menu.png" alt="MacStayOn menu bar panel — Keep awake with lid closed, heat &amp; battery guard, session timeline" width="360">
+</p>
+
 ---
 
 ## Why MacStayOn
