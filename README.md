@@ -1,6 +1,6 @@
-# LidAwake
+# MacStayOn
 
-Menu-bar-only macOS app that keeps your MacBook **fully awake when the lid is closed** (including on battery), so Claude/agents and other work can keep running. Toggle it off and normal lid-sleep behavior returns.
+Menu-bar-only macOS app that keeps your MacBook **fully awake when the lid is closed** (including on battery), so agents and other work can keep running. Toggle it off and normal lid-sleep behavior returns.
 
 ## What it does
 
@@ -31,14 +31,14 @@ State is saved in `UserDefaults` and re-applied on relaunch (re-applying On show
 ```bash
 chmod +x scripts/build.sh
 ./scripts/build.sh
-open dist/LidAwake.app
+open dist/MacStayOn.app
 ```
 
 Or in Xcode:
 
 ```bash
 xcodegen generate
-open LidAwake.xcodeproj
+open MacStayOn.xcodeproj
 ```
 
 Then Run (⌘R). No Dock icon (`LSUIElement`) — look for the **sun** / **moon** icon in the menu bar.
@@ -48,14 +48,14 @@ Then Run (⌘R). No Dock icon (`LSUIElement`) — look for the **sun** / **moon*
 1. Status line — current mode  
 2. Detail — `disablesleep`, assertion, AC/battery  
 3. **Turn On / Turn Off** — On shows a heat/enclosure warning first (Cancel stays Off; Continue goes to the admin password dialog)  
-4. **Quit LidAwake** (restores prior sleep settings)
+4. **Quit MacStayOn** (restores prior sleep settings)
 
 ### Quick verify
 
 ```bash
 # After enabling (and approving admin):
 pmset -g | grep disablesleep          # expect: disablesleep 1
-pmset -g assertions | grep -i LidAwake # PreventSystemSleep assertion
+pmset -g assertions | grep -i MacStayOn # PreventSystemSleep assertion
 
 # After Off or Quit:
 pmset -g | grep disablesleep          # expect absent or 0
@@ -64,5 +64,5 @@ pmset -g | grep disablesleep          # expect absent or 0
 ## Notes
 
 - Turning On starts a privileged watchdog that restores the previous `disablesleep` when you turn Off, quit, or the app process exits — so sleep is not left disabled after a clean exit.
-- Closing the lid with Stay Awake **on** should leave the machine awake on battery or AC (no external display required).
+- Closing the lid with MacStayOn **on** should leave the machine awake on battery or AC (no external display required).
 - Menu bar only — no settings windows.

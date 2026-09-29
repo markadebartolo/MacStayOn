@@ -1,4 +1,4 @@
-name: LidAwake
+name: MacStayOn
 options:
   bundleIdPrefix: com.markdebartolo
   deploymentTarget:
@@ -12,16 +12,16 @@ settings:
     CODE_SIGNING_ALLOWED: "YES"
     CODE_SIGNING_REQUIRED: "NO"
 targets:
-  LidAwake:
+  MacStayOn:
     type: application
     platform: macOS
     sources:
-      - path: LidAwake
+      - path: MacStayOn
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.markdebartolo.LidAwake
-        PRODUCT_NAME: LidAwake
-        INFOPLIST_FILE: LidAwake/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.markdebartolo.MacStayOn
+        PRODUCT_NAME: MacStayOn
+        INFOPLIST_FILE: MacStayOn/Info.plist
         GENERATE_INFOPLIST_FILE: false
         LD_RUNPATH_SEARCH_PATHS:
           - "$(inherited)"
@@ -33,4 +33,4 @@ targets:
         ENABLE_HARDENED_RUNTIME: true
         SWIFT_EMIT_LOC_STRINGS: false
     entitlements:
-      path: LidAwake/LidAwake.entitlements
+      path: MacStayOn/MacStayOn.entitlements
