@@ -218,7 +218,7 @@ private struct PopoverRoot: View {
             return row.wasBackgroundWork ? "working in background" : "working now"
         }
         if analytics.isLive {
-            return "seen this session"
+            return row.isRunning ? "idle" : "stopped"
         }
         return row.wasBackgroundWork ? "background work" : "this session"
     }

@@ -12,6 +12,8 @@ struct AppUsageRow: Identifiable, Equatable {
     let duration: TimeInterval
     let wasBackgroundWork: Bool
     let isActiveNow: Bool
+    /// False once the app process has quit; the duration is frozen.
+    let isRunning: Bool
 }
 
 /// Tracks how long MacStayOn has been On and which apps were doing work.
@@ -40,11 +42,12 @@ final class SessionAnalytics: ObservableObject {
     private var lastSampleAt: Date?
     private var ownPID: pid_t = 0
     private var activeKeys: Set<String> = []
+    private var runningKeys: Set<String> = []
 
     /// Combined `ps` %CPU across the app family to count as working.
     private let cpuPercentThreshold: Double = 1.0
     private let stickyActive: TimeInterval = 60
-    private let maxRows = 6
+    private let maxRows = 12
 
     func start() {
         tearDownObservers()
@@ -52,6 +55,7 @@ final class SessionAnalytics: ObservableObject {
         sessionStartedAt = Date()
         lastSampleAt = Date()
         activeKeys = []
+        runningKeys = []
         elapsed = 0
         totals = [:]
         topApps = []
@@ -73,6 +77,7 @@ final class SessionAnalytics: ObservableObject {
             elapsed = Date().timeIntervalSince(sessionStartedAt)
         }
         activeKeys = []
+        runningKeys = []
         publishApps()
         isLive = false
         hasSummary = elapsed > 0 || !topApps.isEmpty
@@ -85,6 +90,7 @@ final class SessionAnalytics: ObservableObject {
         sessionStartedAt = nil
         lastSampleAt = nil
         activeKeys = []
+        runningKeys = []
         totals = [:]
         topApps = []
         elapsed = 0
@@ -141,11 +147,13 @@ final class SessionAnalytics: ObservableObject {
         let cpuPercent = Self.cpuPercentByPID()
 
         var nextActive = Set<String>()
+        var nextRunning = Set<String>()
 
         for app in apps {
             let pid = app.processIdentifier
             let bid = app.bundleIdentifier ?? "pid.\(pid)"
             let appName = app.localizedName ?? bid
+            nextRunning.insert(bid)
             let bundlePath = app.bundleURL?.path
             let roots = Self.supportRoots(appName: appName, bundleID: app.bundleIdentifier)
 
@@ -222,6 +230,8 @@ final class SessionAnalytics: ObservableObject {
         }
 
         activeKeys = nextActive
+        runningKeys = nextRunning
+        // Apps that quit stay in `totals` with a frozen duration — they are not removed.
         publishApps()
     }
 
@@ -229,17 +239,20 @@ final class SessionAnalytics: ObservableObject {
         topApps = totals
             .filter { $0.value.seconds > 0 }
             .map { key, acc in
+                let running = isLive && runningKeys.contains(key)
                 AppUsageRow(
                     key: key,
                     name: acc.name,
                     detail: acc.detail,
                     duration: acc.seconds,
                     wasBackgroundWork: acc.backgroundSeconds > acc.seconds * 0.5,
-                    isActiveNow: isLive && activeKeys.contains(key)
+                    isActiveNow: isLive && activeKeys.contains(key),
+                    isRunning: running
                 )
             }
             .sorted {
                 if $0.isActiveNow != $1.isActiveNow { return $0.isActiveNow && !$1.isActiveNow }
+                if $0.isRunning != $1.isRunning { return $0.isRunning && !$1.isRunning }
                 return $0.duration > $1.duration
             }
             .prefix(maxRows)
