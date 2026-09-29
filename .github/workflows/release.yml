@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing or new tag to release (e.g. v1.0.0)"
+        required: true
+        default: "v1.0.0"
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Build MacStayOn.app
+        run: ./scripts/build.sh
+      - name: Zip app
+        run: |
+          ditto -c -k --keepParent dist/MacStayOn.app MacStayOn-macos-arm64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64
+          path: MacStayOn-macos-arm64.zip
+
+  release:
+    needs: [macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="$INPUT_TAG"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+
+          NOTES="$(cat <<EOF
+          ## MacStayOn ${TAG}
+
+          ### macOS — \`MacStayOn-macos-arm64.zip\`
+          **Menu bar app · closed-lid stay awake for agents**
+
+          1. Unzip and open **MacStayOn.app**
+          2. Click the **moon** in the menu bar → **Keep awake with lid closed**
+          3. Confirm the heat warning, then allow the one-time **admin** prompt
+
+          Panel includes **Heat & battery guard**, session timeline, and lid-open **restore sleep** prompt.
+
+          ---
+
+          **Safety:** Do not use in a bag or enclosed space. The guard can turn MacStayOn off on low battery or serious heat.
+
+          The built-in display turns off when the lid closes; the Mac should keep running.
+          EOF
+          )"
+
+          MAC="artifacts/macos-arm64/MacStayOn-macos-arm64.zip"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$MAC" --clobber
+            gh release edit "$TAG" --notes "$NOTES" --title "MacStayOn ${TAG}"
+          else
+            gh release create "$TAG" "$MAC" \
+              --title "MacStayOn ${TAG}" \
+              --notes "$NOTES" \
+              --target "$GITHUB_SHA"
+          fi
