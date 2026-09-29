@@ -164,13 +164,16 @@ internal sealed class LidPowerManager : IDisposable
             SetIndex(SubSleep, HibernateIdle, ac: false, 0);
             ActivateScheme();
 
-            // Confirm lid actually flipped.
+            // Confirm lid flipped when we can parse powercfg output.
+            // null means parse/encoding failure — do not treat as a failed set.
             var acNow = QueryIndex(SubButtons, LidAction, ac: true);
             var dcNow = QueryIndex(SubButtons, LidAction, ac: false);
-            if (acNow != DoNothing || dcNow != DoNothing)
+            if ((acNow.HasValue && acNow.Value != DoNothing) ||
+                (dcNow.HasValue && dcNow.Value != DoNothing))
             {
                 throw new InvalidOperationException(
-                    $"Lid action did not stick (AC={acNow}, DC={dcNow}). Try running PowerShell as Administrator.");
+                    $"Lid action did not stick (AC={DescribeLid(acNow)}, DC={DescribeLid(dcNow)}). " +
+                    "Try running as Administrator.");
             }
 
             CreatePowerRequest();
@@ -245,28 +248,84 @@ internal sealed class LidPowerManager : IDisposable
 
     private uint? QueryIndex(string subgroup, string setting, bool ac)
     {
-        var output = RunPowerCfg("/q", Scheme, subgroup, setting);
-        var label = ac ? "Current AC Power Setting Index" : "Current DC Power Setting Index";
-        var match = Regex.Match(
-            output,
-            $@"{Regex.Escape(label)}:\s*0x([0-9a-fA-F]+)",
-            RegexOptions.IgnoreCase);
-        if (!match.Success)
+        // Try GUID scheme first, then SCHEME_CURRENT alias.
+        foreach (var scheme in new[] { Scheme, "SCHEME_CURRENT" }.Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            return null;
+            string output;
+            try
+            {
+                output = RunPowerCfg("/q", scheme, subgroup, setting);
+            }
+            catch
+            {
+                continue;
+            }
+
+            // Flexible match: powercfg may indent or localize slightly; grab last AC/DC index.
+            var label = ac ? "Current AC Power Setting Index" : "Current DC Power Setting Index";
+            var matches = Regex.Matches(
+                output,
+                $@"{Regex.Escape(label)}\s*:\s*0x([0-9a-fA-F]+)",
+                RegexOptions.IgnoreCase);
+            if (matches.Count > 0)
+            {
+                return Convert.ToUInt32(matches[^1].Groups[1].Value, 16);
+            }
+
+            // Fallback: some builds omit "Power Setting" wording spacing
+            matches = Regex.Matches(
+                output,
+                ac
+                    ? @"Current\s+AC[^:\n]*Index\s*:\s*0x([0-9a-fA-F]+)"
+                    : @"Current\s+DC[^:\n]*Index\s*:\s*0x([0-9a-fA-F]+)",
+                RegexOptions.IgnoreCase);
+            if (matches.Count > 0)
+            {
+                return Convert.ToUInt32(matches[^1].Groups[1].Value, 16);
+            }
         }
-        return Convert.ToUInt32(match.Groups[1].Value, 16);
+
+        return null;
     }
 
     private void SetIndex(string subgroup, string setting, bool ac, uint value)
     {
         var flag = ac ? "/setacvalueindex" : "/setdcvalueindex";
-        RunPowerCfg(flag, Scheme, subgroup, setting, value.ToString());
+        // Unhide setting on some OEM images (ignore failure).
+        try { RunPowerCfg("/attributes", subgroup, setting, "-ATTRIB_HIDE"); } catch { /* optional */ }
+
+        Exception? last = null;
+        foreach (var scheme in new[] { Scheme, "SCHEME_CURRENT" }.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                RunPowerCfg(flag, scheme, subgroup, setting, value.ToString());
+                return;
+            }
+            catch (Exception ex)
+            {
+                last = ex;
+            }
+        }
+        throw last ?? new InvalidOperationException("powercfg set failed.");
     }
 
     private void ActivateScheme()
     {
-        RunPowerCfg("/setactive", Scheme);
+        Exception? last = null;
+        foreach (var scheme in new[] { Scheme, "SCHEME_CURRENT" }.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                RunPowerCfg("/setactive", scheme);
+                return;
+            }
+            catch (Exception ex)
+            {
+                last = ex;
+            }
+        }
+        throw last ?? new InvalidOperationException("powercfg /setactive failed.");
     }
 
     private static bool DetectsModernStandby()
@@ -290,7 +349,57 @@ internal sealed class LidPowerManager : IDisposable
             FileName = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.System),
                 "powercfg.exe"),
-            ArgumentList = { },
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+            // powercfg often emits UTF-16 when redirected; wrong encoding made queries look empty.
+            StandardOutputEncoding = Encoding.Unicode,
+            StandardErrorEncoding = Encoding.Unicode,
+        };
+        foreach (var a in args)
+        {
+            psi.ArgumentList.Add(a);
+        }
+
+        using var proc = Process.Start(psi)
+            ?? throw new InvalidOperationException("Failed to start powercfg.");
+
+        var stdout = proc.StandardOutput.ReadToEnd();
+        var stderr = proc.StandardError.ReadToEnd();
+        proc.WaitForExit();
+
+        // If Unicode decode produced mostly NULs/garbage, retry as default ANSI/UTF-8 bytes.
+        if (LooksMojibake(stdout))
+        {
+            stdout = ReRunPowerCfgDefaultEncoding(args);
+        }
+
+        if (proc.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                string.IsNullOrWhiteSpace(stderr) ? $"powercfg exited {proc.ExitCode}" : stderr.Trim());
+        }
+        return stdout.Replace("\0", "");
+    }
+
+    private static bool LooksMojibake(string s)
+    {
+        if (string.IsNullOrEmpty(s))
+        {
+            return true;
+        }
+        var nuls = s.Count(c => c == '\0');
+        return nuls > s.Length / 10;
+    }
+
+    private static string ReRunPowerCfgDefaultEncoding(string[] args)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.System),
+                "powercfg.exe"),
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -303,15 +412,19 @@ internal sealed class LidPowerManager : IDisposable
 
         using var proc = Process.Start(psi)
             ?? throw new InvalidOperationException("Failed to start powercfg.");
-        var stdout = proc.StandardOutput.ReadToEnd();
-        var stderr = proc.StandardError.ReadToEnd();
+        using var ms = new MemoryStream();
+        proc.StandardOutput.BaseStream.CopyTo(ms);
         proc.WaitForExit();
-        if (proc.ExitCode != 0)
+        var bytes = ms.ToArray();
+        if (bytes.Length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE)
         {
-            throw new InvalidOperationException(
-                string.IsNullOrWhiteSpace(stderr) ? $"powercfg exited {proc.ExitCode}" : stderr.Trim());
+            return Encoding.Unicode.GetString(bytes);
         }
-        return stdout;
+        if (bytes.Length >= 2 && bytes[1] == 0x00)
+        {
+            return Encoding.Unicode.GetString(bytes);
+        }
+        return Encoding.UTF8.GetString(bytes).Replace("\0", "");
     }
 
     // --- PowerRequest + execution state ---
