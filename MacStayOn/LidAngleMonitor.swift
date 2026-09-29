@@ -90,7 +90,7 @@ final class LidAngleMonitor: @unchecked Sendable {
             Unmanaged.passUnretained(self).toOpaque()
         )
 
-        let rl = CFRunLoopGetCurrent()
+        let rl = CFRunLoopGetCurrent()!
         runLoop = rl
         IOHIDDeviceScheduleWithRunLoop(found, rl, CFRunLoopMode.defaultMode.rawValue)
         IOHIDManagerScheduleWithRunLoop(mgr, rl, CFRunLoopMode.defaultMode.rawValue)
@@ -104,13 +104,18 @@ final class LidAngleMonitor: @unchecked Sendable {
     }
 
     private func teardownHID() {
-        if let device {
-            IOHIDDeviceUnscheduleFromRunLoop(device, runLoop ?? CFRunLoopGetCurrent(), CFRunLoopMode.defaultMode.rawValue)
+        let rl = runLoop ?? CFRunLoopGetCurrent()
+        if let device, let rl {
+            IOHIDDeviceUnscheduleFromRunLoop(device, rl, CFRunLoopMode.defaultMode.rawValue)
+            IOHIDDeviceClose(device, IOOptionBits(kIOHIDOptionsTypeNone))
+        } else if let device {
             IOHIDDeviceClose(device, IOOptionBits(kIOHIDOptionsTypeNone))
         }
         device = nil
-        if let manager {
-            IOHIDManagerUnscheduleFromRunLoop(manager, runLoop ?? CFRunLoopGetCurrent(), CFRunLoopMode.defaultMode.rawValue)
+        if let manager, let rl {
+            IOHIDManagerUnscheduleFromRunLoop(manager, rl, CFRunLoopMode.defaultMode.rawValue)
+            IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+        } else if let manager {
             IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
         }
         manager = nil
