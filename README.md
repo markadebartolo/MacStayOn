@@ -1,4 +1,8 @@
 <p align="center">
+  <img src="docs/media/macstayon-appicon-1024.png" alt="MacStayOn" width="96" height="96">
+</p>
+
+<p align="center">
   <strong>MacStayOn</strong><br>
   <sub>Menu bar control for closed-lid stay awake — built for long agent runs</sub>
 </p>
