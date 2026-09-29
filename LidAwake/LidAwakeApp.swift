@@ -63,7 +63,11 @@ private struct MenuContent: View {
         Divider()
 
         Button(sleepManager.isEnabled ? "Turn Off (resume normal lid sleep)" : "Turn On (lid closed stays awake)") {
-            sleepManager.setEnabled(!sleepManager.isEnabled)
+            if sleepManager.isEnabled {
+                sleepManager.setEnabled(false)
+            } else {
+                sleepManager.requestEnableFromUser()
+            }
         }
 
         Divider()

@@ -47,7 +47,7 @@ Then Run (⌘R). No Dock icon (`LSUIElement`) — look for the **sun** / **moon*
 
 1. Status line — current mode  
 2. Detail — `disablesleep`, assertion, AC/battery  
-3. **Turn On / Turn Off**  
+3. **Turn On / Turn Off** — On shows a heat/enclosure warning first (Cancel stays Off; Continue goes to the admin password dialog)  
 4. **Quit LidAwake** (restores prior sleep settings)
 
 ### Quick verify

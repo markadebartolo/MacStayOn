@@ -69,6 +69,37 @@ final class SleepAssertionManager: ObservableObject {
         }
     }
 
+    /// Interactive Turn On from the menu: heat warning first, then admin/pmset flow.
+    /// Cancel leaves the feature Off. Not used when turning Off.
+    func requestEnableFromUser() {
+        if isEnabled {
+            refreshStatusDetail()
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Keep Mac awake with lid closed?"
+        alert.informativeText = """
+        With this on, closing the lid will not put your Mac to sleep. It can overheat if left running in a confined space.
+
+        Do not put the Mac in a bag, under a blanket, or in another enclosed space while Stay Awake is on.
+        """
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Continue")
+        alert.addButton(withTitle: "Cancel")
+
+        NSApp.activate(ignoringOtherApps: true)
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            activate()
+        } else {
+            isEnabled = false
+            lastError = nil
+            UserDefaults.standard.set(false, forKey: Self.defaultsKey)
+            refreshStatusDetail()
+        }
+    }
+
     // MARK: - Activate
 
     private func activate() {
