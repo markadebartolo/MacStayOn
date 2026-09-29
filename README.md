@@ -11,8 +11,6 @@
   <a href="https://github.com/markadebartolo/MacStayOn/releases/latest"><strong>Download for macOS</strong></a>
   &nbsp;·&nbsp;
   <a href="https://github.com/markadebartolo/MacStayOn/releases">All releases</a>
-  &nbsp;·&nbsp;
-  Windows: <a href="windows/PCStayOn/">PCStayOn</a>
 </p>
 
 <p align="center">
@@ -72,12 +70,6 @@ Session data stays **on your Mac** — nothing is sent to a server.
 | Works on **battery** without a monitor | Sleep is not left disabled after a clean quit |
 
 `PreventSystemSleep` alone is not enough on battery; MacStayOn uses the same approach power users rely on for closed-lid work.
-
----
-
-## Windows
-
-**[PCStayOn](windows/PCStayOn/)** — system tray app for Windows (lid / power settings). Same idea, different OS APIs.
 
 ---
 

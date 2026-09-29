@@ -31,32 +31,8 @@ jobs:
           name: macos-arm64
           path: MacStayOn-macos-arm64.zip
 
-  windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: "8.0.x"
-      - name: Publish PCStayOn
-        run: >
-          dotnet publish windows/PCStayOn/PCStayOn.csproj
-          -c Release
-          -r win-x64
-          --self-contained true
-          -p:PublishSingleFile=true
-          -p:IncludeNativeLibrariesForSelfExtract=true
-          -o publish
-      - name: Zip publish output
-        shell: pwsh
-        run: Compress-Archive -Path publish\* -DestinationPath PCStayOn-win-x64.zip
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows-x64
-          path: PCStayOn-win-x64.zip
-
   release:
-    needs: [macos, windows]
+    needs: [macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -76,7 +52,7 @@ jobs:
           fi
 
           NOTES="$(cat <<EOF
-          ## MacStayOn / PCStayOn ${TAG}
+          ## MacStayOn ${TAG}
 
           ### macOS — \`MacStayOn-macos-arm64.zip\`
           **Menu bar app · closed-lid stay awake for agents**
@@ -87,10 +63,6 @@ jobs:
 
           Panel includes **Heat & battery guard**, session timeline, and lid-open **restore sleep** prompt.
 
-          ### Windows — \`PCStayOn-win-x64.zip\`
-          1. Unzip and run **PCStayOn.exe**
-          2. Tray icon → **Turn On**
-
           ---
 
           **Safety:** Do not use in a bag or enclosed space. The guard can turn MacStayOn off on low battery or serious heat.
@@ -100,14 +72,13 @@ jobs:
           )"
 
           MAC="artifacts/macos-arm64/MacStayOn-macos-arm64.zip"
-          WIN="artifacts/windows-x64/PCStayOn-win-x64.zip"
 
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$MAC" "$WIN" --clobber
-            gh release edit "$TAG" --notes "$NOTES"
+            gh release upload "$TAG" "$MAC" --clobber
+            gh release edit "$TAG" --notes "$NOTES" --title "MacStayOn ${TAG}"
           else
-            gh release create "$TAG" "$MAC" "$WIN" \
-              --title "MacStayOn / PCStayOn ${TAG}" \
+            gh release create "$TAG" "$MAC" \
+              --title "MacStayOn ${TAG}" \
               --notes "$NOTES" \
               --target "$GITHUB_SHA"
           fi
