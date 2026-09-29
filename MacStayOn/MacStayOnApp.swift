@@ -7,7 +7,10 @@ struct MacStayOnApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            PopoverRoot(sleepManager: appDelegate.sleepManager)
+            PopoverRoot(
+                sleepManager: appDelegate.sleepManager,
+                analytics: appDelegate.sleepManager.analytics
+            )
         } label: {
             MenuBarLabel(sleepManager: appDelegate.sleepManager)
         }
@@ -50,6 +53,7 @@ private struct MenuBarLabel: View {
 
 private struct PopoverRoot: View {
     @ObservedObject var sleepManager: SleepAssertionManager
+    @ObservedObject var analytics: SessionAnalytics
 
     private var isOn: Bool { sleepManager.isEnabled }
 
@@ -58,10 +62,14 @@ private struct PopoverRoot: View {
             header
             Divider().opacity(0.35)
             statusBlock
+            if analytics.isLive || analytics.hasSummary {
+                Divider().opacity(0.35)
+                sessionBlock
+            }
             Divider().opacity(0.35)
             controls
         }
-        .frame(width: 280)
+        .frame(width: 300)
         .background(Palette.panel.ignoresSafeArea())
     }
 
@@ -133,6 +141,52 @@ private struct PopoverRoot: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+
+    private var sessionBlock: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(analytics.isLive ? "This session" : "Last session")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Palette.secondary)
+                Spacer()
+                Text(SessionAnalytics.formatDuration(analytics.elapsed))
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(Palette.text)
+                    .monospacedDigit()
+            }
+
+            if analytics.topApps.isEmpty {
+                Text(analytics.isLive
+                      ? "Frontmost apps will show up as you work."
+                      : "No app activity recorded.")
+                    .font(.system(size: 11, weight: .regular, design: .rounded))
+                    .foregroundStyle(Palette.secondary)
+            } else {
+                VStack(spacing: 6) {
+                    ForEach(analytics.topApps) { row in
+                        HStack(spacing: 8) {
+                            Text(row.name)
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundStyle(Palette.text)
+                                .lineLimit(1)
+                            Spacer(minLength: 0)
+                            Text(SessionAnalytics.formatDuration(row.duration))
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                .foregroundStyle(Palette.secondary)
+                                .monospacedDigit()
+                        }
+                    }
+                }
+            }
+
+            Text("Tracks frontmost apps locally while On. You’ll be asked to turn Off when the lid opens.")
+                .font(.system(size: 10.5, weight: .regular, design: .rounded))
+                .foregroundStyle(Palette.secondary.opacity(0.9))
+                .fixedSize(horizontal: false, vertical: true)
+        }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
     }

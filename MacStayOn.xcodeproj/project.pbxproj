@@ -8,13 +8,18 @@
 
 /* Begin PBXBuildFile section */
 		3CF36D329C07A54648C4299E /* SleepAssertionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C829051A9A4218DD77F2C32C /* SleepAssertionManager.swift */; };
+		541567C97E61A0C6862FF6D1 /* LidMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE3FEBA7898EB6C7BE896A9 /* LidMonitor.swift */; };
 		7C340361E5950D9982E45146 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DD81DF72ADB6F9916C297486 /* Assets.xcassets */; };
 		7DF07DAB6995A0E7A56D2F13 /* MacStayOnApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1286037094980442A8B90FA /* MacStayOnApp.swift */; };
+		FE32EDAF8A7800965EBF4CCC /* SessionAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29FE82A6B2D548C210FA377A /* SessionAnalytics.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0DE3FEBA7898EB6C7BE896A9 /* LidMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LidMonitor.swift; sourceTree = "<group>"; };
 		25AB80C519C1F0D8850950B5 /* MacStayOn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacStayOn.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		29FE82A6B2D548C210FA377A /* SessionAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionAnalytics.swift; sourceTree = "<group>"; };
 		5D5B0E6326B2762E8D6D6FBC /* MacStayOn.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MacStayOn.entitlements; sourceTree = "<group>"; };
+		63BFA15901EA4552DFB5ED84 /* MacStayOn-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MacStayOn-Bridging-Header.h"; sourceTree = "<group>"; };
 		C1286037094980442A8B90FA /* MacStayOnApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacStayOnApp.swift; sourceTree = "<group>"; };
 		C829051A9A4218DD77F2C32C /* SleepAssertionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepAssertionManager.swift; sourceTree = "<group>"; };
 		DD81DF72ADB6F9916C297486 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -27,8 +32,11 @@
 			children = (
 				DD81DF72ADB6F9916C297486 /* Assets.xcassets */,
 				EF158FFE4308ECB5751ADE98 /* Info.plist */,
+				0DE3FEBA7898EB6C7BE896A9 /* LidMonitor.swift */,
+				63BFA15901EA4552DFB5ED84 /* MacStayOn-Bridging-Header.h */,
 				5D5B0E6326B2762E8D6D6FBC /* MacStayOn.entitlements */,
 				C1286037094980442A8B90FA /* MacStayOnApp.swift */,
+				29FE82A6B2D548C210FA377A /* SessionAnalytics.swift */,
 				C829051A9A4218DD77F2C32C /* SleepAssertionManager.swift */,
 			);
 			path = MacStayOn;
@@ -78,7 +86,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1430;
+				LastUpgradeCheck = 1500;
 				TargetAttributes = {
 				};
 			};
@@ -117,7 +125,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				541567C97E61A0C6862FF6D1 /* LidMonitor.swift in Sources */,
 				7DF07DAB6995A0E7A56D2F13 /* MacStayOnApp.swift in Sources */,
+				FE32EDAF8A7800965EBF4CCC /* SessionAnalytics.swift in Sources */,
 				3CF36D329C07A54648C4299E /* SleepAssertionManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -144,6 +154,7 @@
 				PRODUCT_NAME = MacStayOn;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "MacStayOn/MacStayOn-Bridging-Header.h";
 			};
 			name = Release;
 		};
@@ -232,6 +243,7 @@
 				PRODUCT_NAME = MacStayOn;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "MacStayOn/MacStayOn-Bridging-Header.h";
 			};
 			name = Debug;
 		};

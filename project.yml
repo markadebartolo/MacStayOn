@@ -34,5 +34,6 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         ENABLE_HARDENED_RUNTIME: true
         SWIFT_EMIT_LOC_STRINGS: false
+        SWIFT_OBJC_BRIDGING_HEADER: MacStayOn/MacStayOn-Bridging-Header.h
     entitlements:
       path: MacStayOn/MacStayOn.entitlements

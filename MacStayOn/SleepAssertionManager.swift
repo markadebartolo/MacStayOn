@@ -20,10 +20,15 @@ final class SleepAssertionManager: ObservableObject {
     @Published private(set) var statusDetail: String?
     @Published private(set) var lastError: String?
 
+    let analytics = SessionAnalytics()
+
     private var assertionID: IOPMAssertionID = 0
     private var hasAssertion = false
     private var isActivating = false
     private var didFinishLaunchSetup = false
+    private let lidMonitor = LidMonitor()
+    private var lidWasClosedWhileEnabled = false
+    private var isPromptingLidOpen = false
 
     private var stateDir: URL {
         FileManager.default.temporaryDirectory
@@ -178,6 +183,7 @@ final class SleepAssertionManager: ObservableObject {
             _ = createAssertion()
             isEnabled = true
             UserDefaults.standard.set(true, forKey: Self.defaultsKey)
+            startSessionHelpers()
             refreshStatusDetail()
         case .cancelled:
             isEnabled = false
@@ -195,6 +201,7 @@ final class SleepAssertionManager: ObservableObject {
     // MARK: - Deactivate
 
     private func deactivate(persistOff: Bool) {
+        stopSessionHelpers(retainAnalytics: true)
         requestWatchdogRestore()
         releaseAssertion()
 
@@ -219,6 +226,71 @@ final class SleepAssertionManager: ObservableObject {
         UserDefaults.standard.removeObject(forKey: Self.savedPrevKey)
         lastError = nil
         refreshStatusDetail()
+    }
+
+    // MARK: - Session helpers (analytics + lid)
+
+    private func startSessionHelpers() {
+        lidWasClosedWhileEnabled = false
+        isPromptingLidOpen = false
+        analytics.start()
+        lidMonitor.onClamshellChange = { [weak self] closed in
+            self?.handleClamshellChange(closed: closed)
+        }
+        lidMonitor.start()
+    }
+
+    private func stopSessionHelpers(retainAnalytics: Bool) {
+        lidMonitor.stop()
+        lidMonitor.onClamshellChange = nil
+        if retainAnalytics {
+            analytics.stopAndRetainSummary()
+        } else {
+            analytics.clear()
+        }
+        lidWasClosedWhileEnabled = false
+    }
+
+    private func handleClamshellChange(closed: Bool) {
+        guard isEnabled else { return }
+        if closed {
+            lidWasClosedWhileEnabled = true
+            return
+        }
+        guard lidWasClosedWhileEnabled, !isPromptingLidOpen else { return }
+        lidWasClosedWhileEnabled = false
+        isPromptingLidOpen = true
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+            guard let self, self.isEnabled else {
+                self?.isPromptingLidOpen = false
+                return
+            }
+            self.promptTurnOffAfterLidOpen()
+            self.isPromptingLidOpen = false
+        }
+    }
+
+    private func promptTurnOffAfterLidOpen() {
+        let elapsed = SessionAnalytics.formatDuration(analytics.elapsed)
+
+        let alert = NSAlert()
+        alert.messageText = "Lid opened — turn MacStayOn off?"
+        alert.informativeText = """
+        Stay Awake was on for \(elapsed) while the lid was closed.
+
+        Turn it off to restore normal lid sleep, or keep it on for another closed-lid session.
+        """
+        alert.alertStyle = .informational
+        alert.icon = NSImage(systemSymbolName: "laptopcomputer.and.arrow.down", accessibilityDescription: nil)
+        alert.addButton(withTitle: "Turn Off")
+        alert.addButton(withTitle: "Keep On")
+
+        NSApp.activate(ignoringOtherApps: true)
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            setEnabled(false)
+        }
     }
 
     private func requestWatchdogRestore() {
