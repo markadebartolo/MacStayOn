@@ -4,6 +4,8 @@ options:
   deploymentTarget:
     macOS: "13.0"
   createIntermediateGroups: true
+  # Keep Xcodeproj format compatible with GitHub Actions Xcode 15 runners
+  xcodeVersion: "15.0"
 settings:
   base:
     SWIFT_VERSION: "5.0"

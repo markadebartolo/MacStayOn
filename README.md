@@ -1,5 +1,7 @@
 # MacStayOn
 
+**Releases:** https://github.com/markadebartolo/MacStayOn/releases
+
 Keep a laptop **awake when the lid is closed** so agents and other work keep running.
 
 | Platform | Location |
