@@ -4,7 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace MacStayOn;
+namespace PCStayOn;
 
 /// <summary>
 /// Keeps a Windows laptop awake with the lid closed by:
@@ -28,7 +28,7 @@ internal sealed class LidPowerManager : IDisposable
 
     private static readonly string StatePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "MacStayOn",
+        "PCStayOn",
         "state.json");
 
     private bool _enabled;
@@ -71,7 +71,7 @@ internal sealed class LidPowerManager : IDisposable
             "With this on, closing the lid should not put your PC to sleep.\n\n" +
             "The built-in screen will go dark when the lid is closed — that is normal. " +
             "The PC should keep running (fans/CPU/agents).\n\n" +
-            "Do not put the PC in a bag, under a blanket, or in another enclosed space while MacStayOn is on.",
+            "Do not put the PC in a bag, under a blanket, or in another enclosed space while PCStayOn is on.",
             "Keep PC awake with lid closed?",
             MessageBoxButtons.OKCancel,
             MessageBoxIcon.Warning);
@@ -305,7 +305,7 @@ internal sealed class LidPowerManager : IDisposable
             ?? throw new InvalidOperationException("Failed to start powercfg.");
         var stdout = proc.StandardOutput.ReadToEnd();
         var stderr = proc.StandardError.ReadToEnd();
-        proc.WaitUntilExit();
+        proc.WaitForExit();
         if (proc.ExitCode != 0)
         {
             throw new InvalidOperationException(
@@ -355,7 +355,7 @@ internal sealed class LidPowerManager : IDisposable
     private void CreatePowerRequest()
     {
         ReleasePowerRequest();
-        var reason = Marshal.StringToHGlobalUni("MacStayOn: keep system awake with lid closed");
+        var reason = Marshal.StringToHGlobalUni("PCStayOn: keep system awake with lid closed");
         try
         {
             var ctx = new ReasonContext

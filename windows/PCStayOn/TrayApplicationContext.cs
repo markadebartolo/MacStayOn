@@ -1,4 +1,4 @@
-namespace MacStayOn;
+namespace PCStayOn;
 
 internal sealed class TrayApplicationContext : ApplicationContext
 {
@@ -20,7 +20,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _detailItem = new ToolStripMenuItem("…") { Enabled = false };
         _toggleItem = new ToolStripMenuItem("Turn On (lid closed stays awake)", null, OnToggle);
 
-        var quitItem = new ToolStripMenuItem("Quit MacStayOn", null, OnQuit);
+        var quitItem = new ToolStripMenuItem("Quit PCStayOn", null, OnQuit);
 
         var menu = new ContextMenuStrip();
         menu.Items.Add(_statusItem);
@@ -35,7 +35,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             Icon = _iconOff,
             Visible = true,
-            Text = "MacStayOn Off",
+            Text = "PCStayOn Off",
             ContextMenuStrip = menu,
         };
         _tray.MouseUp += (_, e) =>
@@ -53,7 +53,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _manager.ApplyPersistedIfNeeded();
         RefreshMenu();
 
-        _tray.BalloonTipTitle = "MacStayOn";
+        _tray.BalloonTipTitle = "PCStayOn";
         _tray.BalloonTipText = "Running in the system tray. Right-click the sun/moon icon.";
         _tray.ShowBalloonTip(3000);
     }
@@ -68,7 +68,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _toggleItem.Text = on
             ? "Turn Off (resume normal lid sleep)"
             : "Turn On (lid closed stays awake)";
-        _tray.Text = on ? "MacStayOn On" : "MacStayOn Off";
+        _tray.Text = on ? "PCStayOn On" : "PCStayOn Off";
         _tray.Icon = on ? _iconOn : _iconOff;
     }
 
@@ -83,14 +83,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
             var ok = _manager.RequestEnableFromUser(null);
             if (ok)
             {
-                _tray.BalloonTipTitle = "MacStayOn On";
+                _tray.BalloonTipTitle = "PCStayOn On";
                 _tray.BalloonTipText =
                     "Lid close should not sleep the PC. The screen still goes dark when closed — that is normal.";
                 _tray.ShowBalloonTip(5000);
             }
             else if (_manager.LastError is not null)
             {
-                MessageBox.Show(_manager.LastError, "MacStayOn", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(_manager.LastError, "PCStayOn", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
         RefreshMenu();

@@ -5,7 +5,7 @@ Keep a laptop **awake when the lid is closed** so agents and other work keep run
 | Platform | Location |
 |----------|----------|
 | **macOS** (menu bar) | this repo root — see below |
-| **Windows** (system tray) | [`windows/MacStayOn`](windows/MacStayOn/) |
+| **Windows** (system tray) | [`windows/PCStayOn`](windows/PCStayOn/) |
 
 ---
 

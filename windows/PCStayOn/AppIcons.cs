@@ -1,4 +1,4 @@
-namespace MacStayOn;
+namespace PCStayOn;
 
 internal static class AppIcons
 {
