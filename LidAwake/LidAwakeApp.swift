@@ -1,23 +1,48 @@
+import AppKit
 import SwiftUI
 
 @main
 struct LidAwakeApp: App {
-    @StateObject private var sleepManager = SleepAssertionManager()
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
         MenuBarExtra {
-            MenuContent(sleepManager: sleepManager)
+            MenuContent(sleepManager: appDelegate.sleepManager)
         } label: {
-            Label {
-                Text(sleepManager.isEnabled ? "LidAwake On" : "LidAwake Off")
-            } icon: {
-                Image(systemName: sleepManager.isEnabled ? "sun.max.fill" : "moon.zzz")
-            }
-            .help(sleepManager.isEnabled
-                  ? "Lid closed: stays awake"
-                  : "Lid closed: normal sleep")
+            MenuBarLabel(sleepManager: appDelegate.sleepManager)
         }
         .menuBarExtraStyle(.menu)
+    }
+}
+
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    let sleepManager = SleepAssertionManager()
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        sleepManager.applyPersistedStateIfNeeded()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        sleepManager.prepareForTermination()
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+}
+
+private struct MenuBarLabel: View {
+    @ObservedObject var sleepManager: SleepAssertionManager
+
+    var body: some View {
+        Label {
+            Text(sleepManager.isEnabled ? "LidAwake On" : "LidAwake Off")
+        } icon: {
+            Image(systemName: sleepManager.isEnabled ? "sun.max.fill" : "moon.zzz")
+        }
+        .help(sleepManager.isEnabled
+              ? "Lid closed: stays awake"
+              : "Lid closed: normal sleep")
     }
 }
 
@@ -25,7 +50,6 @@ private struct MenuContent: View {
     @ObservedObject var sleepManager: SleepAssertionManager
 
     var body: some View {
-        // Clear current-state line (not a toggle itself)
         Text(sleepManager.isEnabled
              ? "Status: Lid closed stays awake"
              : "Status: Normal lid sleep")
@@ -45,7 +69,7 @@ private struct MenuContent: View {
         Divider()
 
         Button("Quit LidAwake") {
-            sleepManager.setEnabled(false)
+            sleepManager.prepareForTermination()
             NSApplication.shared.terminate(nil)
         }
         .keyboardShortcut("q")

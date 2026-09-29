@@ -1,30 +1,30 @@
 # LidAwake
 
-Menu-bar-only macOS app that keeps your MacBook **fully awake when the lid is closed**, so Claude/agents and other work can keep running. Toggle it off and normal lid-sleep behavior returns.
+Menu-bar-only macOS app that keeps your MacBook **fully awake when the lid is closed** (including on battery), so Claude/agents and other work can keep running. Toggle it off and normal lid-sleep behavior returns.
 
 ## What it does
 
 | Toggle | Behavior |
 |--------|----------|
-| **On** (sun icon) | Holds an IOKit `PreventSystemSleep` power assertion so closing the lid does **not** put the machine to sleep |
-| **Off** (moon icon) | Releases the assertion — normal closed-lid sleep |
+| **On** (sun icon) | Runs `pmset -a disablesleep 1` (admin password once) **and** holds an IOKit `PreventSystemSleep` assertion so closing the lid does **not** sleep — on AC or battery |
+| **Off** (moon icon) | Restores the previous `disablesleep` value and releases the assertion |
 
-State is saved in `UserDefaults` and restored on relaunch.
+State is saved in `UserDefaults` and re-applied on relaunch (re-applying On shows the admin dialog again).
 
-This is **not** idle-only `caffeinate`. It uses the same class of system sleep assertion that apps like KeepingYouAwake / Amphetamine use for closed-clamshell stay-awake.
+`PreventSystemSleep` alone is **not** enough on battery: macOS still sleeps on lid-close. `pmset disablesleep` is what actually blocks that without an external display.
 
 ## Requirements
 
 - macOS 13 Ventura or later
 - Xcode (for `xcodebuild`) and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`)
-- **AC power recommended.** Apple generally honors `PreventSystemSleep` on adapter power. On battery, macOS may still sleep on lid close for thermal/safety policy — the menu shows when you’re on battery.
+- **Admin password** when turning On (standard macOS authorization dialog)
 
 ## Permissions
 
-No Accessibility, Full Disk Access, or other TCC prompts are required for the power assertion path.
-
-- First launch of an unsigned local build: right-click the app → **Open**, or allow it under **System Settings → Privacy & Security** if Gatekeeper blocks it.
-- Sandbox is **off** (required for IOKit power assertions in this setup).
+- **Admin authorization** when enabling (to change `pmset`). Canceling leaves the toggle Off and the menu says so.
+- No Accessibility or Full Disk Access required.
+- First launch of an unsigned local build: right-click → **Open**, or allow under **System Settings → Privacy & Security**.
+- Sandbox is **off** (required for IOKit + invoking privileged `pmset`).
 
 ## Build & run
 
@@ -41,25 +41,28 @@ xcodegen generate
 open LidAwake.xcodeproj
 ```
 
-Then Run (⌘R). The app has no Dock icon (`LSUIElement`) — look for the **sun** / **moon** icon in the menu bar.
+Then Run (⌘R). No Dock icon (`LSUIElement`) — look for the **sun** / **moon** icon in the menu bar.
 
 ### Menu
 
 1. Status line — current mode  
-2. **Turn On / Turn Off** — toggle stay-awake  
-3. **Quit LidAwake**
+2. Detail — `disablesleep`, assertion, AC/battery  
+3. **Turn On / Turn Off**  
+4. **Quit LidAwake** (restores prior sleep settings)
 
 ### Quick verify
 
 ```bash
-# After enabling in the menu:
-pmset -g assertions | grep -i LidAwake
-```
+# After enabling (and approving admin):
+pmset -g | grep disablesleep          # expect: disablesleep 1
+pmset -g assertions | grep -i LidAwake # PreventSystemSleep assertion
 
-You should see a `PreventSystemSleep` assertion owned by LidAwake.
+# After Off or Quit:
+pmset -g | grep disablesleep          # expect absent or 0
+```
 
 ## Notes
 
-- Quitting the app releases the assertion (normal lid sleep resumes).
-- Closing the lid with Stay Awake **on** and the Mac on AC should leave the machine awake (fans/CPU continue; agents keep running).
-- This does not create a window or settings UI — menu bar only by design.
+- Turning On starts a privileged watchdog that restores the previous `disablesleep` when you turn Off, quit, or the app process exits — so sleep is not left disabled after a clean exit.
+- Closing the lid with Stay Awake **on** should leave the machine awake on battery or AC (no external display required).
+- Menu bar only — no settings windows.
