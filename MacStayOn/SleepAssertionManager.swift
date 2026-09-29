@@ -77,6 +77,12 @@ final class SleepAssertionManager: ObservableObject {
         if UserDefaults.standard.bool(forKey: Self.defaultsKey) {
             setEnabled(true)
         } else {
+            // Prior sessions could leave SleepDisabled=1 if the privileged
+            // watchdog died before restore. Clear it so "Off" means normal lid sleep.
+            if currentDisablesleep() != 0 {
+                restoreDisablesleepWithAdmin(preferringSavedPrev: true)
+            }
+            cleanupStateFiles()
             refreshStatusDetail()
         }
     }
@@ -171,7 +177,8 @@ final class SleepAssertionManager: ObservableObject {
         #!/bin/bash
         set -euo pipefail
         mkdir -p '\(Self.sq(statePath))'
-        PREV=$(pmset -g | awk '/disablesleep/ { print $2; exit }' || true)
+        # macOS prints system-wide as SleepDisabled; some releases also show disablesleep.
+        PREV=$(pmset -g | awk 'tolower($1) ~ /^(disablesleep|sleepdisabled)$/ { print $2; exit }' || true)
         if [ -z "${PREV}" ]; then PREV=0; fi
         printf '%s' "${PREV}" > '\(Self.sq(prevPath))'
         chmod 644 '\(Self.sq(prevPath))'
@@ -180,6 +187,9 @@ final class SleepAssertionManager: ObservableObject {
           OLD=$(cat '\(Self.sq(watchdogPidPath))' 2>/dev/null || true)
           if [ -n "${OLD}" ]; then kill "${OLD}" 2>/dev/null || true; fi
         fi
+        # Keep a privileged copy of the restore helper; background jobs from
+        # `do shell script … with administrator privileges` often lose root when
+        # the parent exits, so Turn Off also restores via a fresh admin call.
         nohup /bin/bash -c '
           PREV_FILE="\(Self.dq(prevPath))"
           SENTINEL="\(Self.dq(sentinelPath))"
@@ -192,7 +202,7 @@ final class SleepAssertionManager: ObservableObject {
             fi
             sleep 1
           done
-          pmset -a disablesleep "${PREV:-0}"
+          /usr/bin/pmset -a disablesleep "${PREV:-0}" || true
           rm -f "$SENTINEL" "$PREV_FILE" "$WATCHDOG_PID_FILE"
         ' >/dev/null 2>&1 &
         echo $! > '\(Self.sq(watchdogPidPath))'
@@ -250,22 +260,55 @@ final class SleepAssertionManager: ObservableObject {
             UserDefaults.standard.set(false, forKey: Self.defaultsKey)
         }
 
-        let deadline = Date().addingTimeInterval(3.0)
+        let deadline = Date().addingTimeInterval(2.0)
         while Date() < deadline {
             if currentDisablesleep() == 0 { break }
             Thread.sleep(forTimeInterval: 0.15)
         }
 
-        // Last-resort restore if watchdog did not clear it (may prompt).
+        // Watchdog often cannot keep admin rights after the enable dialog exits.
+        // Always finish restore here if SleepDisabled is still set (may prompt).
         if currentDisablesleep() != 0 {
-            let prev = UserDefaults.standard.string(forKey: Self.savedPrevKey) ?? "0"
-            let safePrev = prev.allSatisfy(\.isNumber) ? prev : "0"
-            _ = Self.runAdminCommand("/usr/bin/pmset", arguments: ["-a", "disablesleep", safePrev])
+            restoreDisablesleepWithAdmin(preferringSavedPrev: true)
         }
 
         UserDefaults.standard.removeObject(forKey: Self.savedPrevKey)
+        cleanupStateFiles()
         lastError = nil
         refreshStatusDetail()
+    }
+
+    /// Restores `pmset disablesleep` / system-wide SleepDisabled via admin auth.
+    @discardableResult
+    private func restoreDisablesleepWithAdmin(preferringSavedPrev: Bool) -> Bool {
+        let prev: String
+        if preferringSavedPrev,
+           let saved = UserDefaults.standard.string(forKey: Self.savedPrevKey),
+           saved.allSatisfy(\.isNumber) {
+            prev = saved
+        } else if let disk = try? String(contentsOf: prevFile, encoding: .utf8),
+                  disk.trimmingCharacters(in: .whitespacesAndNewlines).allSatisfy(\.isNumber) {
+            prev = disk.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            prev = "0"
+        }
+
+        switch Self.runAdminCommand("/usr/bin/pmset", arguments: ["-a", "disablesleep", prev]) {
+        case .success:
+            return currentDisablesleep() == 0 || Int(prev) == currentDisablesleep()
+        case .cancelled:
+            lastError = "Admin canceled — sleep may still be disabled. Turn Off again to restore lid sleep."
+            return false
+        case .failure(let message):
+            lastError = "Could not restore lid sleep. \(message)"
+            return false
+        }
+    }
+
+    private func cleanupStateFiles() {
+        for url in [sentinelFile, prevFile, watchdogPidFile, enableScriptFile] {
+            try? FileManager.default.removeItem(at: url)
+        }
     }
 
     // MARK: - Session helpers (analytics + lid)
@@ -424,12 +467,17 @@ final class SleepAssertionManager: ObservableObject {
         let disablesleep = currentDisablesleep()
 
         if isEnabled {
-            statusDetail = "disablesleep=\(disablesleep) · assertion \(hasAssertion ? "on" : "off") · \(power)"
+            statusDetail = "SleepDisabled=\(disablesleep) · assertion \(hasAssertion ? "on" : "off") · \(power)"
+        } else if disablesleep != 0 {
+            statusDetail = "Sleep still disabled (SleepDisabled=\(disablesleep)) — turn Off again to restore"
         } else {
             statusDetail = "Normal lid sleep · \(power)"
         }
     }
 
+    /// Reads system-wide sleep-disabled flag. On current macOS, `pmset -g`
+    /// reports this as `SleepDisabled` under "System-wide power settings", not
+    /// as `disablesleep` in the "Currently in use" block.
     private func currentDisablesleep() -> Int {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/pmset")
@@ -444,7 +492,9 @@ final class SleepAssertionManager: ObservableObject {
             let text = String(data: data, encoding: .utf8) ?? ""
             for line in text.split(separator: "\n") {
                 let parts = line.split(whereSeparator: { $0.isWhitespace })
-                if parts.count >= 2, parts[0] == "disablesleep", let v = Int(parts[1]) {
+                guard parts.count >= 2 else { continue }
+                let key = parts[0].lowercased()
+                if key == "disablesleep" || key == "sleepdisabled", let v = Int(parts[1]) {
                     return v
                 }
             }
