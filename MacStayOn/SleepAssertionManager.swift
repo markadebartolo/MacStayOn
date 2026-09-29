@@ -6,7 +6,8 @@ import IOKit.pwr_mgt
 
 /// Keeps the Mac awake with the lid closed — including on battery — by:
 /// 1. `pmset -a disablesleep 1` (requires admin; the reliable lid-sleep block)
-/// 2. An IOKit `PreventSystemSleep` assertion (extra belt-and-suspenders)
+/// 2. IOKit assertions: system sleep + display idle (blocks screensaver)
+/// 3. `ProcessInfo` activity so App Nap / idle display sleep stay off
 ///
 /// On enable, a privileged watchdog is started (one admin dialog). It restores
 /// the previous `disablesleep` value when the app asks (sentinel file) or when
@@ -16,7 +17,8 @@ final class SleepAssertionManager: ObservableObject {
     private static let savedPrevKey = "savedDisablesleepValue"
     private static let guardEnabledKey = "macStayOnGuardEnabled"
     private static let batteryFloorKey = "macStayOnBatteryFloor"
-    private static let assertionName = "MacStayOn: keep system awake with lid closed" as CFString
+    private static let systemAssertionName = "MacStayOn: keep system awake with lid closed" as CFString
+    private static let displayAssertionName = "MacStayOn: keep display awake (no screensaver)" as CFString
 
     @Published private(set) var isEnabled: Bool = false
     @Published private(set) var statusDetail: String?
@@ -32,8 +34,10 @@ final class SleepAssertionManager: ObservableObject {
 
     let analytics = SessionAnalytics()
 
-    private var assertionID: IOPMAssertionID = 0
+    private var systemAssertionID: IOPMAssertionID = 0
+    private var displayAssertionID: IOPMAssertionID = 0
     private var hasAssertion = false
+    private var processActivity: NSObjectProtocol?
     private var isActivating = false
     private var didFinishLaunchSetup = false
     private let lidMonitor = LidMonitor()
@@ -75,9 +79,7 @@ final class SleepAssertionManager: ObservableObject {
 
     deinit {
         guardTimer?.invalidate()
-        if hasAssertion {
-            IOPMAssertionRelease(assertionID)
-        }
+        releaseAssertion()
     }
 
     /// Call once the menu bar UI is up (or from AppDelegate.didFinishLaunching).
@@ -456,28 +458,59 @@ final class SleepAssertionManager: ObservableObject {
     @discardableResult
     private func createAssertion() -> Bool {
         if hasAssertion { return true }
-        var newID: IOPMAssertionID = 0
-        let type = kIOPMAssertionTypePreventSystemSleep as CFString
-        let result = IOPMAssertionCreateWithName(
-            type,
+
+        var systemOK = false
+        var systemID: IOPMAssertionID = 0
+        let systemResult = IOPMAssertionCreateWithName(
+            kIOPMAssertionTypePreventSystemSleep as CFString,
             IOPMAssertionLevel(kIOPMAssertionLevelOn),
-            Self.assertionName,
-            &newID
+            Self.systemAssertionName,
+            &systemID
         )
-        if result == kIOReturnSuccess {
-            assertionID = newID
-            hasAssertion = true
-            return true
+        if systemResult == kIOReturnSuccess {
+            systemAssertionID = systemID
+            systemOK = true
         }
-        return false
+
+        // Blocks screensaver / display idle sleep while Stay Awake is on (lid open).
+        var displayOK = false
+        var displayID: IOPMAssertionID = 0
+        let displayResult = IOPMAssertionCreateWithName(
+            kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
+            IOPMAssertionLevel(kIOPMAssertionLevelOn),
+            Self.displayAssertionName,
+            &displayID
+        )
+        if displayResult == kIOReturnSuccess {
+            displayAssertionID = displayID
+            displayOK = true
+        }
+
+        if processActivity == nil {
+            processActivity = ProcessInfo.processInfo.beginActivity(
+                options: [.idleDisplaySleepDisabled, .idleSystemSleepDisabled, .userInitiated],
+                reason: "MacStayOn stay awake"
+            )
+        }
+
+        hasAssertion = systemOK || displayOK
+        return hasAssertion
     }
 
     private func releaseAssertion() {
-        if hasAssertion {
-            IOPMAssertionRelease(assertionID)
-            assertionID = 0
-            hasAssertion = false
+        if systemAssertionID != 0 {
+            IOPMAssertionRelease(systemAssertionID)
+            systemAssertionID = 0
         }
+        if displayAssertionID != 0 {
+            IOPMAssertionRelease(displayAssertionID)
+            displayAssertionID = 0
+        }
+        if let processActivity {
+            ProcessInfo.processInfo.endActivity(processActivity)
+            self.processActivity = nil
+        }
+        hasAssertion = false
     }
 
     // MARK: - Status
