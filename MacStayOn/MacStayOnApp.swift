@@ -60,91 +60,114 @@ private struct PopoverRoot: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-            Divider().opacity(0.35)
+            Divider().overlay(Palette.line)
             statusBlock
-            Divider().opacity(0.35)
+            actionButton
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
+            Divider().overlay(Palette.line)
             guardBlock
             if analytics.isLive || analytics.hasSummary {
-                Divider().opacity(0.35)
+                Divider().overlay(Palette.line)
                 sessionBlock
             }
-            Divider().opacity(0.35)
-            controls
+            Divider().overlay(Palette.line)
+            quitButton
         }
-        .frame(width: 300)
+        .frame(width: 340)
         .background(Palette.panel.ignoresSafeArea())
     }
 
     private var header: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             ZStack {
                 Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: isOn
-                                ? [Palette.sunTop, Palette.sunBottom]
-                                : [Palette.moonTop, Palette.moonBottom],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 40, height: 40)
-                    .shadow(color: (isOn ? Palette.sunBottom : Palette.moonBottom).opacity(0.35), radius: 8, y: 2)
-
-                Image(systemName: isOn ? "sun.max.fill" : "moon.zzz.fill")
-                    .font(.system(size: 18, weight: .semibold))
+                    .fill(isOn ? Palette.orange : Palette.iconFill)
+                    .frame(width: 36, height: 36)
+                Image(systemName: isOn ? "bolt.fill" : "moon.zzz.fill")
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.white)
             }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("MacStayOn")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Palette.text)
-                Text(isOn ? "Stay awake with lid closed" : "Normal lid sleep")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(Palette.secondary)
-            }
+            Text("MacStayOn")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Palette.text)
 
             Spacer(minLength: 0)
 
             Text(isOn ? "ON" : "OFF")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .tracking(0.6)
-                .padding(.horizontal, 8)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(isOn ? Palette.orange : Palette.secondary)
+                .padding(.horizontal, 10)
                 .padding(.vertical, 4)
-                .foregroundStyle(isOn ? Palette.sunBottom : Palette.secondary)
                 .background(
                     Capsule(style: .continuous)
-                        .fill(isOn ? Palette.sunBottom.opacity(0.14) : Palette.chip)
+                        .fill(isOn ? Palette.orange.opacity(0.12) : Palette.chip)
                 )
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .padding(.top, 14)
+        .padding(.bottom, 12)
     }
 
     private var statusBlock: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(isOn ? "Agents can keep running" : "Laptop will sleep when closed")
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+        VStack(alignment: .leading, spacing: 4) {
+            Text(isOn ? "Lid closed: stays awake" : "Lid closed: normal sleep")
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Palette.text)
 
-            Text(sleepManager.statusDetail ?? (isOn
-                  ? "Power assertion active"
-                  : "Toggle on when you need a closed-lid session"))
-                .font(.system(size: 11.5, weight: .regular, design: .rounded))
+            Text(powerLine)
+                .font(.system(size: 13))
                 .foregroundStyle(Palette.secondary)
-                .fixedSize(horizontal: false, vertical: true)
 
             if let err = sleepManager.lastError, !isOn {
                 Text(err)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(Palette.danger)
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 2)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.top, 14)
+        .padding(.bottom, 12)
+    }
+
+    private var powerLine: String {
+        if sleepManager.onACPower {
+            return "On AC power"
+        }
+        if let percent = sleepManager.batteryPercent {
+            return "On battery · \(percent)%"
+        }
+        return "On battery"
+    }
+
+    private var actionButton: some View {
+        Button {
+            if isOn {
+                sleepManager.setEnabled(false)
+            } else {
+                sleepManager.requestEnableFromUser()
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: isOn ? "moon.zzz.fill" : "bolt.fill")
+                Text(isOn ? "Restore normal sleep" : "Keep awake with lid closed")
+                    .fontWeight(.semibold)
+            }
+            .font(.system(size: 14))
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 11)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(isOn ? Palette.iconFill : Palette.orange)
+            )
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut(.defaultAction)
     }
 
     private var sessionBlock: some View {
@@ -183,7 +206,7 @@ private struct PopoverRoot: View {
                                 }
                                 Text(rowStatus(row))
                                     .font(.system(size: 10, weight: .medium, design: .rounded))
-                                    .foregroundStyle(row.isActiveNow ? Palette.sunBottom : Palette.secondary)
+                                    .foregroundStyle(row.isActiveNow ? Palette.orange : Palette.secondary)
                                 ForEach(row.timeline, id: \.self) { line in
                                     Text(line)
                                         .font(.system(size: 10, weight: .regular, design: .rounded))
@@ -232,115 +255,86 @@ private struct PopoverRoot: View {
     }
 
     private var guardBlock: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Toggle(isOn: Binding(
-                get: { sleepManager.guardEnabled },
-                set: { sleepManager.setGuardEnabled($0) }
-            )) {
-                Text("Heat & battery guard")
-                    .font(.system(size: 12.5, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Palette.text)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Heat & battery guard")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Palette.text)
+                    Text("Applies when MacStayOn is on")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Palette.secondary)
+                }
+                Spacer(minLength: 8)
+                Toggle("", isOn: Binding(
+                    get: { sleepManager.guardEnabled },
+                    set: { sleepManager.setGuardEnabled($0) }
+                ))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
             }
-            .toggleStyle(.switch)
-            .controlSize(.small)
 
             HStack {
-                Text("Turn off below")
-                    .font(.system(size: 11.5, weight: .medium, design: .rounded))
-                    .foregroundStyle(Palette.secondary)
-                Spacer()
-                Stepper(value: Binding(
-                    get: { sleepManager.batteryFloor },
-                    set: { sleepManager.setBatteryFloor($0) }
-                ), in: 10...50, step: 5) {
-                    Text("\(sleepManager.batteryFloor)%")
-                        .font(.system(size: 11.5, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Palette.text)
-                        .monospacedDigit()
-                        .frame(minWidth: 36, alignment: .trailing)
-                }
-                .disabled(!sleepManager.guardEnabled)
+                Text("Restore normal sleep at")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(sleepManager.guardEnabled ? Palette.text : Palette.secondary)
+                Spacer(minLength: 8)
+                batteryMenu
             }
 
-            Text(guardStatusLine)
-                .font(.system(size: 10.5, weight: .regular, design: .rounded))
+            Text("Also turns off if serious heat is detected.")
+                .font(.system(size: 12))
                 .foregroundStyle(Palette.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.vertical, 14)
     }
 
-    private var guardStatusLine: String {
-        let battery: String
-        if let percent = sleepManager.batteryPercent {
-            battery = sleepManager.onACPower ? "\(percent)% on AC" : "\(percent)% on battery"
-        } else {
-            battery = sleepManager.onACPower ? "on AC" : "on battery"
+    private var batteryMenu: some View {
+        Menu {
+            ForEach(Array(stride(from: 10, through: 50, by: 5)), id: \.self) { percent in
+                Button("\(percent)% battery") {
+                    sleepManager.setBatteryFloor(percent)
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text("\(sleepManager.batteryFloor)% battery")
+                    .font(.system(size: 13, weight: .medium))
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+            }
+            .foregroundStyle(sleepManager.guardEnabled ? Palette.text : Palette.secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Palette.chip)
+            )
         }
-        if sleepManager.guardEnabled {
-            return "\(battery) · \(sleepManager.thermalLabel). Turns off on battery at \(sleepManager.batteryFloor)% or on serious heat."
-        }
-        return "\(battery) · \(sleepManager.thermalLabel). Guard is off."
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .disabled(!sleepManager.guardEnabled)
     }
 
-    private var controls: some View {
-        VStack(spacing: 8) {
-            Button {
-                if isOn {
-                    sleepManager.setEnabled(false)
-                } else {
-                    sleepManager.requestEnableFromUser()
-                }
-            } label: {
-                HStack {
-                    Image(systemName: isOn ? "moon.zzz.fill" : "bolt.fill")
-                    Text(isOn ? "Turn Off" : "Turn On")
-                        .fontWeight(.semibold)
-                    Spacer(minLength: 0)
-                }
-                .font(.system(size: 13, design: .rounded))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: isOn
-                                    ? [Palette.moonTop, Palette.moonBottom]
-                                    : [Palette.sunTop, Palette.sunBottom],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                )
+    private var quitButton: some View {
+        Button {
+            sleepManager.prepareForTermination()
+            NSApplication.shared.terminate(nil)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "power")
+                Text("Quit MacStayOn")
             }
-            .buttonStyle(.plain)
-            .keyboardShortcut(.defaultAction)
-
-            Button {
-                sleepManager.prepareForTermination()
-                NSApplication.shared.terminate(nil)
-            } label: {
-                HStack {
-                    Image(systemName: "power")
-                    Text("Quit MacStayOn")
-                    Spacer(minLength: 0)
-                }
-                .font(.system(size: 12.5, weight: .medium, design: .rounded))
-                .foregroundStyle(Palette.secondary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Palette.chip)
-                )
-            }
-            .buttonStyle(.plain)
-            .keyboardShortcut("q")
+            .font(.system(size: 14, weight: .medium))
+            .foregroundStyle(Palette.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
         }
-        .padding(14)
+        .buttonStyle(.plain)
+        .keyboardShortcut("q")
     }
 }
 
@@ -349,9 +343,8 @@ private enum Palette {
     static let text = Color(nsColor: .labelColor)
     static let secondary = Color(nsColor: .secondaryLabelColor)
     static let chip = Color(nsColor: .controlBackgroundColor)
-    static let sunTop = Color(red: 1.0, green: 0.78, blue: 0.28)
-    static let sunBottom = Color(red: 0.95, green: 0.52, blue: 0.12)
-    static let moonTop = Color(red: 0.35, green: 0.42, blue: 0.58)
-    static let moonBottom = Color(red: 0.18, green: 0.22, blue: 0.34)
+    static let line = Color(nsColor: .separatorColor).opacity(0.45)
+    static let iconFill = Color(red: 0.22, green: 0.27, blue: 0.38)
+    static let orange = Color(red: 0.96, green: 0.55, blue: 0.18)
     static let danger = Color(red: 0.86, green: 0.28, blue: 0.24)
 }
