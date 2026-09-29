@@ -1,6 +1,17 @@
 # MacStayOn
 
-Menu-bar-only macOS app that keeps your MacBook **fully awake when the lid is closed** (including on battery), so agents and other work can keep running. Toggle it off and normal lid-sleep behavior returns.
+Keep a laptop **awake when the lid is closed** so agents and other work keep running.
+
+| Platform | Location |
+|----------|----------|
+| **macOS** (menu bar) | this repo root — see below |
+| **Windows** (system tray) | [`windows/MacStayOn`](windows/MacStayOn/) |
+
+---
+
+## macOS
+
+Menu-bar-only macOS app that keeps your MacBook **fully awake when the lid is closed** (including on battery). Toggle it off and normal lid-sleep behavior returns.
 
 ## What it does
 
