@@ -10,15 +10,16 @@ struct AppUsageRow: Identifiable, Equatable {
     let name: String
     let detail: String?
     let duration: TimeInterval
-    /// Mostly credited while not frontmost.
     let wasBackgroundWork: Bool
-    /// True if this app is still considered working in the current sample window.
     let isActiveNow: Bool
 }
 
-/// Tracks how long MacStayOn has been On and which apps were doing work —
-/// frontmost focus plus bundle-wide CPU (main app + helpers + Application Support
-/// workers), so background agents like Claude keep counting when not focused.
+/// Tracks how long MacStayOn has been On and which apps were doing work.
+///
+/// Detection uses (in order of reliability for Electron/agent apps like Claude):
+/// 1. Live workers under `~/Library/Application Support/<App>/` (agent sessions)
+/// 2. `ps` CPU % across the app family (works for sandboxed helpers; rusage often does not)
+/// 3. Frontmost focus + sticky window after recent activity
 final class SessionAnalytics: ObservableObject {
     @Published private(set) var isLive = false
     @Published private(set) var elapsed: TimeInterval = 0
@@ -37,15 +38,12 @@ final class SessionAnalytics: ObservableObject {
     private var totals: [String: Acc] = [:]
     private var tick: Timer?
     private var lastSampleAt: Date?
-    /// Cumulative CPU seconds keyed by pid (main + helpers + support workers).
-    private var lastCPU: [pid_t: Double] = [:]
     private var ownPID: pid_t = 0
     private var activeKeys: Set<String> = []
 
-    /// Minimum bundle CPU seconds in a sample to count as working.
-    private let cpuWorkThreshold: Double = 0.008
-    /// Keep crediting after CPU drops — agents burst then wait on network/model.
-    private let stickyActive: TimeInterval = 45
+    /// Combined `ps` %CPU across the app family to count as working.
+    private let cpuPercentThreshold: Double = 1.0
+    private let stickyActive: TimeInterval = 60
     private let maxRows = 6
 
     func start() {
@@ -53,7 +51,6 @@ final class SessionAnalytics: ObservableObject {
         ownPID = ProcessInfo.processInfo.processIdentifier
         sessionStartedAt = Date()
         lastSampleAt = Date()
-        lastCPU = [:]
         activeKeys = []
         elapsed = 0
         totals = [:]
@@ -69,7 +66,6 @@ final class SessionAnalytics: ObservableObject {
         sample()
     }
 
-    /// Stop tracking but keep last session stats visible in the popover.
     func stopAndRetainSummary() {
         sample(final: true)
         tearDownObservers()
@@ -82,14 +78,12 @@ final class SessionAnalytics: ObservableObject {
         hasSummary = elapsed > 0 || !topApps.isEmpty
         sessionStartedAt = nil
         lastSampleAt = nil
-        lastCPU = [:]
     }
 
     func clear() {
         tearDownObservers()
         sessionStartedAt = nil
         lastSampleAt = nil
-        lastCPU = [:]
         activeKeys = []
         totals = [:]
         topApps = []
@@ -132,7 +126,6 @@ final class SessionAnalytics: ObservableObject {
         let apps = NSWorkspace.shared.runningApplications
             .filter { $0.activationPolicy == .regular && $0.processIdentifier != ownPID }
 
-        // Include every Space/Desktop — OnScreenOnly misses apps on other Mission Control desktops.
         let windows = Self.appWindows(allSpaces: true)
         var windowTitlesByPID: [pid_t: [String]] = [:]
         var pidsWithWindows = Set<pid_t>()
@@ -145,39 +138,45 @@ final class SessionAnalytics: ObservableObject {
         let pathByPID = Self.processPaths()
         let parentOf = Self.parentMap(for: Array(pathByPID.keys))
         let childrenOf = Self.childrenMap(from: parentOf)
+        let cpuPercent = Self.cpuPercentByPID()
 
         var nextActive = Set<String>()
-        var touchedPIDs = Set<pid_t>()
 
         for app in apps {
             let pid = app.processIdentifier
             let bid = app.bundleIdentifier ?? "pid.\(pid)"
             let appName = app.localizedName ?? bid
             let bundlePath = app.bundleURL?.path
+            let roots = Self.supportRoots(appName: appName, bundleID: app.bundleIdentifier)
 
             let memberPIDs = Self.memberPIDs(
                 mainPID: pid,
                 bundlePath: bundlePath,
-                appName: appName,
-                bundleID: app.bundleIdentifier,
+                supportRoots: roots,
                 pathByPID: pathByPID,
                 childrenOf: childrenOf
             )
 
-            var cpuDelta: Double = 0
+            var familyCPU = 0.0
             for member in memberPIDs {
-                touchedPIDs.insert(member)
-                guard let cpuNow = Self.cpuSeconds(for: member) else { continue }
-                if let cpuPrev = lastCPU[member] {
-                    cpuDelta += max(0, cpuNow - cpuPrev)
-                }
-                lastCPU[member] = cpuNow
+                familyCPU += cpuPercent[member] ?? 0
             }
+
+            // Nested agent CLIs (Claude Code under Application Support) — alive ⇒ working,
+            // even when waiting on the network with near-zero CPU.
+            let supportWorkerCount = memberPIDs.filter { member in
+                guard let path = pathByPID[member] else { return false }
+                return roots.contains { root in
+                    let prefix = root.hasSuffix("/") ? root : root + "/"
+                    return path.hasPrefix(prefix)
+                }
+            }.count
 
             let isFront = pid == frontPID
             let hasWindow = pidsWithWindows.contains(pid)
                 || memberPIDs.contains(where: { pidsWithWindows.contains($0) })
-            let cpuWorking = cpuDelta >= cpuWorkThreshold
+            let cpuWorking = familyCPU >= cpuPercentThreshold
+            let agentsAlive = supportWorkerCount > 0
 
             var acc = totals[bid] ?? Acc(
                 name: appName,
@@ -188,22 +187,24 @@ final class SessionAnalytics: ObservableObject {
             )
             acc.name = appName
 
-            // Prefer a recent window title for display only — never as the identity key.
             let titles = Self.preferredTitles(
                 windowTitlesByPID[pid] ?? memberPIDs.flatMap { windowTitlesByPID[$0] ?? [] },
                 appName: appName
             )
             if let best = titles.first {
                 acc.detail = best
+            } else if agentsAlive {
+                acc.detail = supportWorkerCount == 1
+                    ? "1 agent session"
+                    : "\(supportWorkerCount) agent sessions"
             }
 
-            if cpuWorking || isFront {
+            if cpuWorking || isFront || agentsAlive {
                 acc.lastActiveAt = now
             }
 
             let sticky = acc.lastActiveAt.map { now.timeIntervalSince($0) <= stickyActive } ?? false
-            // Focus, real CPU across the whole app family, or sticky after a recent burst.
-            let shouldCredit = isFront || cpuWorking || sticky
+            let shouldCredit = isFront || cpuWorking || agentsAlive || sticky
 
             if shouldCredit {
                 acc.seconds += delta
@@ -211,22 +212,22 @@ final class SessionAnalytics: ObservableObject {
                     acc.backgroundSeconds += delta
                 }
                 nextActive.insert(bid)
-            }
-
-            // Keep rows we have already seen this session (so Claude does not vanish).
-            if acc.seconds > 0 || shouldCredit || hasWindow && cpuWorking {
+                totals[bid] = acc
+            } else if acc.seconds > 0 {
+                totals[bid] = acc
+            } else if hasWindow {
+                // Seed the row so an open-but-quiet app can still appear once it works.
                 totals[bid] = acc
             }
         }
 
         activeKeys = nextActive
-        lastCPU = lastCPU.filter { touchedPIDs.contains($0.key) }
-
         publishApps()
     }
 
     private func publishApps() {
         topApps = totals
+            .filter { $0.value.seconds > 0 }
             .map { key, acc in
                 AppUsageRow(
                     key: key,
@@ -300,9 +301,36 @@ final class SessionAnalytics: ObservableObject {
         return out
     }
 
+    /// `ps` %CPU — reliable for sandboxed Electron helpers where `proc_pid_rusage` fails.
+    private static func cpuPercentByPID() -> [pid_t: Double] {
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/bin/ps")
+        proc.arguments = ["-axo", "pid=,pcpu="]
+        let out = Pipe()
+        proc.standardOutput = out
+        proc.standardError = Pipe()
+        do {
+            try proc.run()
+            proc.waitUntilExit()
+        } catch {
+            return [:]
+        }
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        guard let text = String(data: data, encoding: .utf8) else { return [:] }
+
+        var map: [pid_t: Double] = [:]
+        for line in text.split(whereSeparator: \.isNewline) {
+            let parts = line.split(whereSeparator: { $0.isWhitespace })
+            guard parts.count >= 2,
+                  let pid = pid_t(parts[0]),
+                  let cpu = Double(parts[1])
+            else { continue }
+            map[pid, default: 0] += cpu
+        }
+        return map
+    }
+
     private static func processPaths() -> [pid_t: String] {
-        // Query required buffer size first — a fixed 4096-pid cap silently drops
-        // high-numbered helpers (common for Electron apps like Claude).
         let neededBytes = proc_listallpids(nil, 0)
         guard neededBytes > 0 else { return [:] }
         let count = Int(neededBytes) / MemoryLayout<pid_t>.size + 128
@@ -362,7 +390,6 @@ final class SessionAnalytics: ObservableObject {
         return result
     }
 
-    /// Support folders where apps (esp. Claude) park nested workers outside the .app bundle.
     private static func supportRoots(appName: String, bundleID: String?) -> [String] {
         let home = FileManager.default.homeDirectoryForCurrentUser
         let support = home.appendingPathComponent("Library/Application Support", isDirectory: true)
@@ -380,20 +407,27 @@ final class SessionAnalytics: ObservableObject {
                 roots.append(path)
             }
         }
+        // Claude Desktop also uses this exact folder name.
+        if appName.localizedCaseInsensitiveContains("claude")
+            || (bundleID?.localizedCaseInsensitiveContains("anthropic") ?? false)
+        {
+            let claude = support.appendingPathComponent("Claude", isDirectory: true).path
+            if seen.insert(claude.lowercased()).inserted {
+                roots.append(claude)
+            }
+        }
         return roots
     }
 
     private static func memberPIDs(
         mainPID: pid_t,
         bundlePath: String?,
-        appName: String,
-        bundleID: String?,
+        supportRoots: [String],
         pathByPID: [pid_t: String],
         childrenOf: [pid_t: [pid_t]]
     ) -> Set<pid_t> {
         var members: Set<pid_t> = [mainPID]
 
-        // 1) Everything executing from inside the .app bundle (Electron Helpers, etc.).
         if let bundlePath, !bundlePath.isEmpty {
             let prefix = bundlePath.hasSuffix("/") ? bundlePath : bundlePath + "/"
             for (pid, path) in pathByPID {
@@ -403,10 +437,7 @@ final class SessionAnalytics: ObservableObject {
             }
         }
 
-        // 2) Nested workers under ~/Library/Application Support/<App>/…
-        //    Claude runs agent work from Application Support/Claude/claude-code/.../claude
-        //    which is outside /Applications/Claude.app.
-        for root in supportRoots(appName: appName, bundleID: bundleID) {
+        for root in supportRoots {
             let prefix = root.hasSuffix("/") ? root : root + "/"
             for (pid, path) in pathByPID {
                 if path.hasPrefix(prefix) {
@@ -415,27 +446,11 @@ final class SessionAnalytics: ObservableObject {
             }
         }
 
-        // 3) Full process tree under the main app pid (covers helpers we miss by path).
-        members.formUnion(descendants(of: mainPID, childrenOf: childrenOf))
-
-        // Also pull descendants of every path-matched member (support workers spawn kids).
-        let pathMatched = members
-        for seed in pathMatched {
+        let seeds = members
+        for seed in seeds {
             members.formUnion(descendants(of: seed, childrenOf: childrenOf))
         }
 
         return members
-    }
-
-    private static func cpuSeconds(for pid: pid_t) -> Double? {
-        var info = rusage_info_v2()
-        let status = withUnsafeMutablePointer(to: &info) { ptr -> Int32 in
-            ptr.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { rebound in
-                proc_pid_rusage(pid, RUSAGE_INFO_V2, rebound)
-            }
-        }
-        guard status == 0 else { return nil }
-        let nanos = Double(info.ri_user_time) + Double(info.ri_system_time)
-        return nanos / 1_000_000_000.0
     }
 }
