@@ -39,6 +39,18 @@ State is saved in `UserDefaults` and re-applied on relaunch (re-applying On show
 - First launch of an unsigned local build: right-click → **Open**, or allow under **System Settings → Privacy & Security**.
 - Sandbox is **off** (required for IOKit + invoking privileged `pmset`).
 
+### Signed / notarized distribution (Apple Developer)
+
+First-time walkthrough: **[docs/DISTRIBUTE-MAC.md](docs/DISTRIBUTE-MAC.md)**  
+After certificates are set up:
+
+```bash
+export SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+export NOTARY_PROFILE="MacStayOn-notary"
+./scripts/build.sh
+./scripts/notarize.sh
+```
+
 ## Build & run
 
 ```bash
