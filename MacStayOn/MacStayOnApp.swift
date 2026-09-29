@@ -204,7 +204,7 @@ private struct PopoverRoot: View {
                 .buttonStyle(.plain)
             }
 
-            Text("Tracks focused apps and background agents (bundle CPU + helpers). Rows stay once seen. Local only — you’ll be asked to turn Off when the lid opens.")
+            Text("Tracks focused apps and background agents across Desktops (bundle CPU + helpers). Rows stay once seen. Local only — you’ll be asked to turn Off when the lid opens.")
                 .font(.system(size: 10.5, weight: .regular, design: .rounded))
                 .foregroundStyle(Palette.secondary.opacity(0.9))
                 .fixedSize(horizontal: false, vertical: true)

@@ -132,7 +132,8 @@ final class SessionAnalytics: ObservableObject {
         let apps = NSWorkspace.shared.runningApplications
             .filter { $0.activationPolicy == .regular && $0.processIdentifier != ownPID }
 
-        let windows = Self.onScreenWindows()
+        // Include every Space/Desktop — OnScreenOnly misses apps on other Mission Control desktops.
+        let windows = Self.appWindows(allSpaces: true)
         var windowTitlesByPID: [pid_t: [String]] = [:]
         var pidsWithWindows = Set<pid_t>()
         for win in windows {
@@ -203,9 +204,11 @@ final class SessionAnalytics: ObservableObject {
             }
 
             let sticky = acc.lastActiveAt.map { now.timeIntervalSince($0) <= stickyActive } ?? false
+            // Windows on other Desktops still count via allSpaces listing.
+            // No-window path covers headless helpers / fully minimized apps.
             let shouldCredit = isFront
                 || (hasWindow && (cpuWorking || sticky))
-                || (!hasWindow && cpuWorking && cpuDelta >= cpuWorkThreshold * 3)
+                || (!hasWindow && (cpuWorking || sticky))
 
             if shouldCredit {
                 acc.seconds += delta
@@ -257,11 +260,14 @@ final class SessionAnalytics: ObservableObject {
         let title: String?
     }
 
-    private static func onScreenWindows() -> [WinInfo] {
-        guard let list = CGWindowListCopyWindowInfo(
-            [.optionOnScreenOnly, .excludeDesktopElements],
-            kCGNullWindowID
-        ) as? [[String: Any]] else {
+    private static func appWindows(allSpaces: Bool) -> [WinInfo] {
+        var options: CGWindowListOption = [.excludeDesktopElements]
+        if allSpaces {
+            options.insert(.optionAll)
+        } else {
+            options.insert(.optionOnScreenOnly)
+        }
+        guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
             return []
         }
 
@@ -270,9 +276,18 @@ final class SessionAnalytics: ObservableObject {
         for info in list {
             guard let pidNum = info[kCGWindowOwnerPID as String] as? NSNumber else { continue }
             let layer = (info[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
+            // Normal app windows sit on layer 0 (including other Spaces).
             guard layer == 0 else { continue }
-            let alpha = (info[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1
-            guard alpha > 0.05 else { continue }
+            // On other Desktops alpha can be reported as 0 — don't require visibility.
+            if !allSpaces {
+                let alpha = (info[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1
+                guard alpha > 0.05 else { continue }
+            }
+            let bounds = info[kCGWindowBounds as String] as? [String: Any]
+            let width = (bounds?["Width"] as? NSNumber)?.doubleValue ?? 0
+            let height = (bounds?["Height"] as? NSNumber)?.doubleValue ?? 0
+            // Skip zero-size chrome / tooltip stubs.
+            guard width >= 40, height >= 40 else { continue }
             let title = info[kCGWindowName as String] as? String
             result.append(WinInfo(pid: pid_t(pidNum.int32Value), title: title))
         }
