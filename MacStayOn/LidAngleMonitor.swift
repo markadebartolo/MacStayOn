@@ -37,8 +37,9 @@ final class LidAngleMonitor {
         }
         device = found
 
-        // Non-seize open is enough for input reports on this sensor.
-        guard IOHIDDeviceOpen(found, IOOptionBits(kIOHIDOptionsTypeNone)) == kIOReturnSuccess else {
+        // This sensor only delivers live input reports when opened with seize.
+        let openOpts = IOOptionBits(kIOHIDOptionsTypeSeizeDevice)
+        guard IOHIDDeviceOpen(found, openOpts) == kIOReturnSuccess else {
             isAvailable = false
             return
         }
