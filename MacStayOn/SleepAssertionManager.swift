@@ -74,39 +74,6 @@ final class SleepAssertionManager: ObservableObject {
         }
     }
 
-    /// Interactive Turn Off from the menu: restores lid sleep, then offers to clear session analytics.
-    func requestDisableFromUser() {
-        guard isEnabled else {
-            offerClearSessionAnalyticsIfNeeded()
-            return
-        }
-        setEnabled(false)
-        offerClearSessionAnalyticsIfNeeded()
-    }
-
-    /// After a session ends, let the user keep or discard the local activity summary.
-    func offerClearSessionAnalyticsIfNeeded() {
-        guard analytics.hasSummary else { return }
-
-        let alert = NSAlert()
-        alert.messageText = "Keep session analytics?"
-        alert.informativeText = """
-        MacStayOn saved how long Stay Awake was on and which apps were working (including background agent windows).
-
-        Keep the summary in the menu, or clear it now.
-        """
-        alert.alertStyle = .informational
-        alert.icon = NSImage(systemSymbolName: "chart.bar.doc.horizontal", accessibilityDescription: nil)
-        alert.addButton(withTitle: "Keep")
-        alert.addButton(withTitle: "Clear")
-
-        NSApp.activate(ignoringOtherApps: true)
-        let response = alert.runModal()
-        if response == .alertSecondButtonReturn {
-            analytics.clear()
-        }
-    }
-
     /// Interactive Turn On from the menu: heat warning first, then admin/pmset flow.
     /// Cancel leaves the feature Off. Not used when turning Off.
     func requestEnableFromUser() {
@@ -323,7 +290,6 @@ final class SleepAssertionManager: ObservableObject {
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {
             setEnabled(false)
-            offerClearSessionAnalyticsIfNeeded()
         }
     }
 

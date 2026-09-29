@@ -227,7 +227,7 @@ private struct PopoverRoot: View {
         VStack(spacing: 8) {
             Button {
                 if isOn {
-                    sleepManager.requestDisableFromUser()
+                    sleepManager.setEnabled(false)
                 } else {
                     sleepManager.requestEnableFromUser()
                 }

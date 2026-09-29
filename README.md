@@ -73,7 +73,7 @@ Then Run (⌘R). No Dock icon (`LSUIElement`) — look for the **sun** / **moon*
 1. Status line — current mode  
 2. Detail — `disablesleep`, assertion, AC/battery  
 3. **This session / Last session** — time On plus apps that were working. Uses focus plus **bundle-wide CPU** (main app + helpers), including apps on **other Mission Control Desktops**; rows stay once seen. Local only.  
-4. **Turn On / Turn Off** — On shows a heat/enclosure warning first (Cancel stays Off; Continue goes to the admin password dialog). Off asks whether to **Keep** or **Clear** the session summary (also available via **Clear last session**).  
+4. **Turn On / Turn Off** — On shows a heat/enclosure warning first (Cancel stays Off; Continue goes to the admin password dialog). Off keeps the last-session summary in the menu by default; use **Clear last session** there to dismiss it.  
 5. **Quit MacStayOn** (restores prior sleep settings)
 
 When Stay Awake is On and you **open the lid** after it was closed, MacStayOn asks whether to **Turn Off** (restore normal lid sleep) or **Keep On**.
