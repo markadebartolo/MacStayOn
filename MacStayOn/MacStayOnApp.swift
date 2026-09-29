@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 @main
-struct LidAwakeApp: App {
+struct MacStayOnApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
@@ -36,7 +36,7 @@ private struct MenuBarLabel: View {
 
     var body: some View {
         Label {
-            Text(sleepManager.isEnabled ? "LidAwake On" : "LidAwake Off")
+            Text(sleepManager.isEnabled ? "MacStayOn On" : "MacStayOn Off")
         } icon: {
             Image(systemName: sleepManager.isEnabled ? "sun.max.fill" : "moon.zzz")
         }
@@ -72,7 +72,7 @@ private struct MenuContent: View {
 
         Divider()
 
-        Button("Quit LidAwake") {
+        Button("Quit MacStayOn") {
             sleepManager.prepareForTermination()
             NSApplication.shared.terminate(nil)
         }

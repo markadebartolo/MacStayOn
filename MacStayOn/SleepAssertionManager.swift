@@ -12,9 +12,9 @@ import IOKit.pwr_mgt
 /// the previous `disablesleep` value when the app asks (sentinel file) or when
 /// the app process exits — so sleep is not left disabled after a clean quit.
 final class SleepAssertionManager: ObservableObject {
-    private static let defaultsKey = "lidStayAwakeEnabled"
+    private static let defaultsKey = "macStayOnEnabled"
     private static let savedPrevKey = "savedDisablesleepValue"
-    private static let assertionName = "LidAwake: keep system awake with lid closed" as CFString
+    private static let assertionName = "MacStayOn: keep system awake with lid closed" as CFString
 
     @Published private(set) var isEnabled: Bool = false
     @Published private(set) var statusDetail: String?
@@ -27,7 +27,7 @@ final class SleepAssertionManager: ObservableObject {
 
     private var stateDir: URL {
         FileManager.default.temporaryDirectory
-            .appendingPathComponent("LidAwake-\(NSUserName())", isDirectory: true)
+            .appendingPathComponent("MacStayOn-\(NSUserName())", isDirectory: true)
     }
 
     private var prevFile: URL { stateDir.appendingPathComponent("disablesleep.prev") }
@@ -82,7 +82,7 @@ final class SleepAssertionManager: ObservableObject {
         alert.informativeText = """
         With this on, closing the lid will not put your Mac to sleep. It can overheat if left running in a confined space.
 
-        Do not put the Mac in a bag, under a blanket, or in another enclosed space while Stay Awake is on.
+        Do not put the Mac in a bag, under a blanket, or in another enclosed space while MacStayOn is on.
         """
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Continue")

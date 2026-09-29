@@ -18,15 +18,15 @@ xcodegen generate
 mkdir -p build dist
 
 xcodebuild \
-  -project LidAwake.xcodeproj \
-  -scheme LidAwake \
+  -project MacStayOn.xcodeproj \
+  -scheme MacStayOn \
   -configuration Release \
   -derivedDataPath "$ROOT/build/DerivedData" \
   CODE_SIGNING_ALLOWED=NO \
   build
 
-APP_SRC="$ROOT/build/DerivedData/Build/Products/Release/LidAwake.app"
-APP_DST="$ROOT/dist/LidAwake.app"
+APP_SRC="$ROOT/build/DerivedData/Build/Products/Release/MacStayOn.app"
+APP_DST="$ROOT/dist/MacStayOn.app"
 
 rm -rf "$APP_DST"
 cp -R "$APP_SRC" "$APP_DST"
