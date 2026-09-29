@@ -7,10 +7,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly ToolStripMenuItem _statusItem;
     private readonly ToolStripMenuItem _detailItem;
     private readonly ToolStripMenuItem _toggleItem;
+    private Icon _iconOff;
+    private Icon _iconOn;
 
     public TrayApplicationContext()
     {
         _manager = new LidPowerManager();
+        _iconOff = AppIcons.Create(enabled: false);
+        _iconOn = AppIcons.Create(enabled: true);
 
         _statusItem = new ToolStripMenuItem("Status: …") { Enabled = false };
         _detailItem = new ToolStripMenuItem("…") { Enabled = false };
@@ -29,7 +33,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         _tray = new NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = _iconOff,
             Visible = true,
             Text = "MacStayOn Off",
             ContextMenuStrip = menu,
@@ -38,7 +42,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             if (e.Button == MouseButtons.Left)
             {
-                // Show context menu on left click too.
                 typeof(NotifyIcon)
                     .GetMethod("ShowContextMenu", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
                     ?.Invoke(_tray, null);
@@ -49,6 +52,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         _manager.ApplyPersistedIfNeeded();
         RefreshMenu();
+
+        _tray.BalloonTipTitle = "MacStayOn";
+        _tray.BalloonTipText = "Running in the system tray. Right-click the sun/moon icon.";
+        _tray.ShowBalloonTip(3000);
     }
 
     private void RefreshMenu()
@@ -62,7 +69,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             ? "Turn Off (resume normal lid sleep)"
             : "Turn On (lid closed stays awake)";
         _tray.Text = on ? "MacStayOn On" : "MacStayOn Off";
-        _tray.Icon = on ? SystemIcons.Shield : SystemIcons.Application;
+        _tray.Icon = on ? _iconOn : _iconOff;
     }
 
     private void OnToggle(object? sender, EventArgs e)
@@ -73,7 +80,18 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         else
         {
-            _manager.RequestEnableFromUser(null);
+            var ok = _manager.RequestEnableFromUser(null);
+            if (ok)
+            {
+                _tray.BalloonTipTitle = "MacStayOn On";
+                _tray.BalloonTipText =
+                    "Lid close should not sleep the PC. The screen still goes dark when closed — that is normal.";
+                _tray.ShowBalloonTip(5000);
+            }
+            else if (_manager.LastError is not null)
+            {
+                MessageBox.Show(_manager.LastError, "MacStayOn", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
         RefreshMenu();
     }
@@ -90,5 +108,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _tray.Visible = false;
         _tray.Dispose();
         _manager.Dispose();
+        _iconOn.Dispose();
+        _iconOff.Dispose();
     }
 }
