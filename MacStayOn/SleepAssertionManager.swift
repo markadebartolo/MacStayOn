@@ -370,15 +370,15 @@ final class SleepAssertionManager: ObservableObject {
         let previous = lastLidAngle
         lastLidAngle = degrees
 
-        // Reset warn latch once the lid is opened past hysteresis.
-        if degrees >= Self.lidWarnResetAngleDegrees {
+        // Re-opened past the warn angle — stop blinking; another close can warn again.
+        if degrees > Self.lidWarnAngleDegrees {
+            ScreenFlashAlert.cancel()
             didFlashForCurrentClose = false
         }
-        // Do not cancel the flash on near-shut angles — samples jump quickly and
-        // would kill the pulse before it's visible. Clamshell-closed cancels instead.
 
-        // Crossing down through the warn angle while Stay Awake is on and lid was open.
-        let crossedDown = (previous == nil || previous! > Self.lidWarnAngleDegrees)
+        // Crossing down through the warn angle (must have been open above it first).
+        let crossedDown = previous != nil
+            && previous! > Self.lidWarnAngleDegrees
             && degrees <= Self.lidWarnAngleDegrees
         guard crossedDown else { return }
         guard !lidWasClosedWhileEnabled else { return }
