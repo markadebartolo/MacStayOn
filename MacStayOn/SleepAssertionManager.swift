@@ -46,10 +46,11 @@ final class SleepAssertionManager: ObservableObject {
     /// After flashing once for a close gesture, wait until the lid opens again.
     private var didFlashForCurrentClose = false
 
-    /// Sensor degrees at/below which we warn (calibrated with user estimate).
-    private static let lidWarnAngleDegrees = 66
+    /// Sensor degrees at/below which we warn (higher = earlier while closing).
+    /// ~95° is shortly after leaving upright (~110–120° open).
+    private static let lidWarnAngleDegrees = 95
     /// Must reopen past this before another warn can fire (hysteresis).
-    private static let lidWarnResetAngleDegrees = 80
+    private static let lidWarnResetAngleDegrees = 110
 
     private var stateDir: URL {
         FileManager.default.temporaryDirectory
@@ -369,15 +370,12 @@ final class SleepAssertionManager: ObservableObject {
         let previous = lastLidAngle
         lastLidAngle = degrees
 
-        // Near-shut: drop any leftover flash and let Stay Awake run normally.
-        if degrees <= 8 {
-            ScreenFlashAlert.cancel()
-        }
-
         // Reset warn latch once the lid is opened past hysteresis.
         if degrees >= Self.lidWarnResetAngleDegrees {
             didFlashForCurrentClose = false
         }
+        // Do not cancel the flash on near-shut angles — samples jump quickly and
+        // would kill the pulse before it's visible. Clamshell-closed cancels instead.
 
         // Crossing down through the warn angle while Stay Awake is on and lid was open.
         let crossedDown = (previous == nil || previous! > Self.lidWarnAngleDegrees)
@@ -414,7 +412,7 @@ final class SleepAssertionManager: ObservableObject {
         guard lidWasClosedWhileEnabled, !isPromptingLidOpen else { return }
         lidWasClosedWhileEnabled = false
         isPromptingLidOpen = true
-        // Latch also clears via angle hysteresis when past 80°.
+        // Latch also clears via angle hysteresis when past reset angle.
         didFlashForCurrentClose = false
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
