@@ -1,28 +1,31 @@
 import AppKit
 
-/// Brief full-screen orange pulse while the lid is closing — cancels if the lid finishes shutting.
+/// Orange screen pulse while the lid is closing past the warn angle — runs until cancelled (lid shut).
 enum ScreenFlashAlert {
     private static var windows: [NSWindow] = []
     private static var isFlashing = false
     private static var cancelled = false
     private static var pulseToken = 0
+    private static var showPhase = true
     private static let logURL = URL(fileURLWithPath: "/tmp/macstayon-lid.log")
 
     static func flashStayAwakeWarning() {
         DispatchQueue.main.async {
+            // Already looping — leave it alone.
+            if isFlashing, !cancelled { return }
+
             cancelLocked()
             isFlashing = true
             cancelled = false
             pulseToken += 1
             let token = pulseToken
-            appendLog("flash begin")
+            showPhase = true
+            appendLog("flash loop begin")
             NSSound.beep()
             NSApp.activate(ignoringOtherApps: true)
 
             var created: [NSWindow] = []
-            let screens = NSScreen.screens
-            appendLog("flash screens=\(screens.count)")
-            for screen in screens {
+            for screen in NSScreen.screens {
                 let win = NSWindow(
                     contentRect: screen.frame,
                     styleMask: .borderless,
@@ -42,12 +45,11 @@ enum ScreenFlashAlert {
                 created.append(win)
             }
             windows = created
-
-            // Hard on/off toggles (no animation dependency).
-            pulse(step: 0, token: token)
+            tick(token: token)
         }
     }
 
+    /// Stop pulsing (lid fully shut / Stay Awake off).
     static func cancel() {
         DispatchQueue.main.async {
             cancelLocked()
@@ -62,24 +64,20 @@ enum ScreenFlashAlert {
         appendLog("flash cancel")
     }
 
-    private static func pulse(step: Int, token: Int) {
+    private static func tick(token: Int) {
         guard !cancelled, token == pulseToken else { return }
-        let show = step % 2 == 0
+
         for win in windows {
-            win.alphaValue = show ? 1 : 0
-            win.orderFrontRegardless()
+            win.alphaValue = showPhase ? 1 : 0
+            if showPhase {
+                win.orderFrontRegardless()
+            }
         }
-        if step < 5 {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.14) {
-                pulse(step: step + 1, token: token)
-            }
-        } else {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-                guard !cancelled, token == pulseToken else { return }
-                tearDownWindows()
-                isFlashing = false
-                appendLog("flash end")
-            }
+        showPhase.toggle()
+
+        // Keep pulsing until cancel() — about 3–4 Hz.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+            tick(token: token)
         }
     }
 
