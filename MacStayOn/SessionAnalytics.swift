@@ -8,13 +8,17 @@ struct AppUsageRow: Identifiable, Equatable {
     var id: String { key }
     let key: String
     let name: String
+    let detail: String?
     let duration: TimeInterval
-    /// True when this row was credited mainly for background CPU / windows, not focus.
+    /// Mostly credited while not frontmost.
     let wasBackgroundWork: Bool
+    /// True if this app is still considered working in the current sample window.
+    let isActiveNow: Bool
 }
 
 /// Tracks how long MacStayOn has been On and which apps were doing work —
-/// frontmost focus, on-screen windows, and background CPU (local only).
+/// frontmost focus plus bundle-wide CPU (main app + helpers), so background
+/// agents like Claude keep counting when their window is not focused.
 final class SessionAnalytics: ObservableObject {
     @Published private(set) var isLive = false
     @Published private(set) var elapsed: TimeInterval = 0
@@ -23,19 +27,25 @@ final class SessionAnalytics: ObservableObject {
 
     private struct Acc {
         var name: String
+        var detail: String?
         var seconds: TimeInterval
         var backgroundSeconds: TimeInterval
+        var lastActiveAt: Date?
     }
 
     private var sessionStartedAt: Date?
     private var totals: [String: Acc] = [:]
     private var tick: Timer?
     private var lastSampleAt: Date?
+    /// Cumulative CPU seconds keyed by pid (main + helpers).
     private var lastCPU: [pid_t: Double] = [:]
     private var ownPID: pid_t = 0
+    private var activeKeys: Set<String> = []
 
-    /// Minimum CPU seconds consumed in a sample window to count as "working".
-    private let cpuWorkThreshold: Double = 0.04
+    /// Minimum bundle CPU seconds in a sample to count as working.
+    private let cpuWorkThreshold: Double = 0.015
+    /// Keep crediting after CPU drops — agents burst then wait on network/model.
+    private let stickyActive: TimeInterval = 30
     private let maxRows = 6
 
     func start() {
@@ -44,6 +54,7 @@ final class SessionAnalytics: ObservableObject {
         sessionStartedAt = Date()
         lastSampleAt = Date()
         lastCPU = [:]
+        activeKeys = []
         elapsed = 0
         totals = [:]
         topApps = []
@@ -65,6 +76,7 @@ final class SessionAnalytics: ObservableObject {
         if let sessionStartedAt {
             elapsed = Date().timeIntervalSince(sessionStartedAt)
         }
+        activeKeys = []
         publishApps()
         isLive = false
         hasSummary = elapsed > 0 || !topApps.isEmpty
@@ -78,6 +90,7 @@ final class SessionAnalytics: ObservableObject {
         sessionStartedAt = nil
         lastSampleAt = nil
         lastCPU = [:]
+        activeKeys = []
         totals = [:]
         topApps = []
         elapsed = 0
@@ -116,11 +129,8 @@ final class SessionAnalytics: ObservableObject {
 
         let frontmost = NSWorkspace.shared.frontmostApplication
         let frontPID = frontmost?.processIdentifier
-        let appsByPID = Dictionary(
-            uniqueKeysWithValues: NSWorkspace.shared.runningApplications
-                .filter { $0.activationPolicy == .regular && $0.processIdentifier != ownPID }
-                .map { ($0.processIdentifier, $0) }
-        )
+        let apps = NSWorkspace.shared.runningApplications
+            .filter { $0.activationPolicy == .regular && $0.processIdentifier != ownPID }
 
         let windows = Self.onScreenWindows()
         var windowTitlesByPID: [pid_t: [String]] = [:]
@@ -131,78 +141,93 @@ final class SessionAnalytics: ObservableObject {
             windowTitlesByPID[win.pid, default: []].append(title)
         }
 
-        var credited = Set<String>()
-
-        for (pid, app) in appsByPID {
-            let cpuNow = Self.cpuSeconds(for: pid)
-            let cpuPrev = lastCPU[pid]
-            if let cpuNow {
-                lastCPU[pid] = cpuNow
+        // Map every live pid → path once, then attribute helpers to app bundles.
+        let pathByPID = Self.processPaths()
+        var cpuByPID: [pid_t: Double] = [:]
+        for pid in pathByPID.keys {
+            if let cpu = Self.cpuSeconds(for: pid) {
+                cpuByPID[pid] = cpu
             }
+        }
 
-            let cpuDelta: Double = {
-                guard let cpuNow, let cpuPrev else { return 0 }
-                return max(0, cpuNow - cpuPrev)
-            }()
+        var nextActive = Set<String>()
+
+        for app in apps {
+            let pid = app.processIdentifier
+            let bid = app.bundleIdentifier ?? "pid.\(pid)"
+            let appName = app.localizedName ?? bid
+            let bundlePath = app.bundleURL?.path
+
+            let memberPIDs = Self.memberPIDs(
+                mainPID: pid,
+                bundlePath: bundlePath,
+                pathByPID: pathByPID
+            )
+
+            var cpuDelta: Double = 0
+            for member in memberPIDs {
+                guard let cpuNow = cpuByPID[member] else { continue }
+                if let cpuPrev = lastCPU[member] {
+                    cpuDelta += max(0, cpuNow - cpuPrev)
+                }
+                lastCPU[member] = cpuNow
+            }
 
             let isFront = pid == frontPID
             let hasWindow = pidsWithWindows.contains(pid)
-            let isWorking = cpuDelta >= cpuWorkThreshold
-            // Credit: focused, or on-screen and burning CPU (agent behind another window).
-            guard isFront || (hasWindow && isWorking) || (isWorking && cpuDelta >= cpuWorkThreshold * 2) else {
-                continue
+                || memberPIDs.contains(where: { pidsWithWindows.contains($0) })
+            let cpuWorking = cpuDelta >= cpuWorkThreshold
+
+            var acc = totals[bid] ?? Acc(
+                name: appName,
+                detail: nil,
+                seconds: 0,
+                backgroundSeconds: 0,
+                lastActiveAt: nil
+            )
+            acc.name = appName
+
+            // Prefer a recent window title for display only — never as the identity key.
+            // (macOS often blanks titles for unfocused apps; keying on them made Claude
+            // "appear" on focus and "stop" when leaving.)
+            let titles = Self.preferredTitles(
+                windowTitlesByPID[pid] ?? memberPIDs.flatMap { windowTitlesByPID[$0] ?? [] },
+                appName: appName
+            )
+            if let best = titles.first {
+                acc.detail = best
             }
 
-            let bid = app.bundleIdentifier ?? "pid.\(pid)"
-            let appName = app.localizedName ?? bid
-            let titles = Self.preferredTitles(windowTitlesByPID[pid] ?? [], appName: appName)
+            if cpuWorking || isFront {
+                acc.lastActiveAt = now
+            }
 
-            if titles.isEmpty {
-                credit(
-                    key: bid,
-                    name: appName,
-                    seconds: delta,
-                    background: !isFront,
-                    into: &credited
-                )
-            } else {
-                // Split the sample across distinct working windows of the same app.
-                let share = delta / Double(titles.count)
-                for title in titles {
-                    credit(
-                        key: "\(bid)|\(title)",
-                        name: "\(appName) — \(title)",
-                        seconds: share,
-                        background: !isFront,
-                        into: &credited
-                    )
+            let sticky = acc.lastActiveAt.map { now.timeIntervalSince($0) <= stickyActive } ?? false
+            let shouldCredit = isFront
+                || (hasWindow && (cpuWorking || sticky))
+                || (!hasWindow && cpuWorking && cpuDelta >= cpuWorkThreshold * 3)
+
+            if shouldCredit {
+                acc.seconds += delta
+                if !isFront {
+                    acc.backgroundSeconds += delta
                 }
+                nextActive.insert(bid)
+            }
+
+            // Keep rows we have already seen this session (so Claude does not vanish).
+            if acc.seconds > 0 || shouldCredit {
+                totals[bid] = acc
             }
         }
 
-        // Drop stale CPU samples for exited processes.
-        let livePIDs = Set(appsByPID.keys)
-        lastCPU = lastCPU.filter { livePIDs.contains($0.key) }
+        activeKeys = nextActive
+
+        // Prune CPU cache for dead pids.
+        let live = Set(pathByPID.keys)
+        lastCPU = lastCPU.filter { live.contains($0.key) }
 
         publishApps()
-    }
-
-    private func credit(
-        key: String,
-        name: String,
-        seconds: TimeInterval,
-        background: Bool,
-        into credited: inout Set<String>
-    ) {
-        guard seconds > 0, !credited.contains(key) else { return }
-        credited.insert(key)
-        var acc = totals[key] ?? Acc(name: name, seconds: 0, backgroundSeconds: 0)
-        acc.name = name
-        acc.seconds += seconds
-        if background {
-            acc.backgroundSeconds += seconds
-        }
-        totals[key] = acc
     }
 
     private func publishApps() {
@@ -211,16 +236,21 @@ final class SessionAnalytics: ObservableObject {
                 AppUsageRow(
                     key: key,
                     name: acc.name,
+                    detail: acc.detail,
                     duration: acc.seconds,
-                    wasBackgroundWork: acc.backgroundSeconds > acc.seconds * 0.5
+                    wasBackgroundWork: acc.backgroundSeconds > acc.seconds * 0.5,
+                    isActiveNow: isLive && activeKeys.contains(key)
                 )
             }
-            .sorted { $0.duration > $1.duration }
+            .sorted {
+                if $0.isActiveNow != $1.isActiveNow { return $0.isActiveNow && !$1.isActiveNow }
+                return $0.duration > $1.duration
+            }
             .prefix(maxRows)
             .map { $0 }
     }
 
-    // MARK: - Window / CPU helpers
+    // MARK: - Process / window helpers
 
     private struct WinInfo {
         let pid: pid_t
@@ -240,7 +270,6 @@ final class SessionAnalytics: ObservableObject {
         for info in list {
             guard let pidNum = info[kCGWindowOwnerPID as String] as? NSNumber else { continue }
             let layer = (info[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
-            // Normal app windows sit on layer 0.
             guard layer == 0 else { continue }
             let alpha = (info[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1
             guard alpha > 0.05 else { continue }
@@ -250,24 +279,66 @@ final class SessionAnalytics: ObservableObject {
         return result
     }
 
-    /// Prefer informative window titles; drop generic / empty / app-name-only duplicates.
     private static func preferredTitles(_ titles: [String], appName: String) -> [String] {
         let appLower = appName.lowercased()
         var seen = Set<String>()
         var out: [String] = []
         for raw in titles {
             let t = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !t.isEmpty else { continue }
+            guard t.count >= 2 else { continue }
             let lower = t.lowercased()
             if lower == appLower { continue }
-            // Skip tiny chrome titles.
-            if t.count < 2 { continue }
             if seen.contains(lower) { continue }
             seen.insert(lower)
             out.append(t)
             if out.count >= 3 { break }
         }
         return out
+    }
+
+    private static func processPaths() -> [pid_t: String] {
+        var capacity: Int32 = 4096
+        var pids = [pid_t](repeating: 0, count: Int(capacity))
+        var bytes = pids.withUnsafeMutableBufferPointer { buf -> Int32 in
+            proc_listallpids(buf.baseAddress, capacity * Int32(MemoryLayout<pid_t>.size))
+        }
+        if bytes <= 0 {
+            capacity = 16384
+            pids = [pid_t](repeating: 0, count: Int(capacity))
+            bytes = pids.withUnsafeMutableBufferPointer { buf -> Int32 in
+                proc_listallpids(buf.baseAddress, capacity * Int32(MemoryLayout<pid_t>.size))
+            }
+        }
+        guard bytes > 0 else { return [:] }
+        let count = Int(bytes) / MemoryLayout<pid_t>.size
+        var map: [pid_t: String] = [:]
+        map.reserveCapacity(count)
+        for i in 0..<count {
+            let pid = pids[i]
+            guard pid > 0 else { continue }
+            // PROC_PIDPATHINFO_MAXSIZE is 4 * MAXPATHLEN (typically 4096).
+            var pathBuf = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+            let n = proc_pidpath(pid, &pathBuf, UInt32(pathBuf.count))
+            guard n > 0 else { continue }
+            map[pid] = String(cString: pathBuf)
+        }
+        return map
+    }
+
+    private static func memberPIDs(
+        mainPID: pid_t,
+        bundlePath: String?,
+        pathByPID: [pid_t: String]
+    ) -> Set<pid_t> {
+        var members: Set<pid_t> = [mainPID]
+        guard let bundlePath, !bundlePath.isEmpty else { return members }
+        let prefix = bundlePath.hasSuffix("/") ? bundlePath : bundlePath + "/"
+        for (pid, path) in pathByPID {
+            if path == bundlePath || path.hasPrefix(prefix) {
+                members.insert(pid)
+            }
+        }
+        return members
     }
 
     private static func cpuSeconds(for pid: pid_t) -> Double? {
@@ -278,7 +349,6 @@ final class SessionAnalytics: ObservableObject {
             }
         }
         guard status == 0 else { return nil }
-        // ri_user_time / ri_system_time are nanoseconds on modern macOS.
         let nanos = Double(info.ri_user_time) + Double(info.ri_system_time)
         return nanos / 1_000_000_000.0
     }

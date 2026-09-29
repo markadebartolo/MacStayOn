@@ -172,12 +172,16 @@ private struct PopoverRoot: View {
                                 Text(row.name)
                                     .font(.system(size: 12, weight: .medium, design: .rounded))
                                     .foregroundStyle(Palette.text)
-                                    .lineLimit(2)
-                                if row.wasBackgroundWork {
-                                    Text("background work")
-                                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                                    .lineLimit(1)
+                                if let detail = row.detail {
+                                    Text(detail)
+                                        .font(.system(size: 10, weight: .regular, design: .rounded))
                                         .foregroundStyle(Palette.secondary)
+                                        .lineLimit(1)
                                 }
+                                Text(rowStatus(row))
+                                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                                    .foregroundStyle(row.isActiveNow ? Palette.sunBottom : Palette.secondary)
                             }
                             Spacer(minLength: 0)
                             Text(SessionAnalytics.formatDuration(row.duration))
@@ -200,13 +204,23 @@ private struct PopoverRoot: View {
                 .buttonStyle(.plain)
             }
 
-            Text("Tracks focused apps and background windows that are actively working. Local only — you’ll be asked to turn Off when the lid opens.")
+            Text("Tracks focused apps and background agents (bundle CPU + helpers). Rows stay once seen. Local only — you’ll be asked to turn Off when the lid opens.")
                 .font(.system(size: 10.5, weight: .regular, design: .rounded))
                 .foregroundStyle(Palette.secondary.opacity(0.9))
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+    }
+
+    private func rowStatus(_ row: AppUsageRow) -> String {
+        if row.isActiveNow {
+            return row.wasBackgroundWork ? "working in background" : "working now"
+        }
+        if analytics.isLive {
+            return "seen this session"
+        }
+        return row.wasBackgroundWork ? "background work" : "this session"
     }
 
     private var controls: some View {
