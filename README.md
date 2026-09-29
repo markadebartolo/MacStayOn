@@ -1,96 +1,105 @@
-# MacStayOn
+<p align="center">
+  <strong>MacStayOn</strong><br>
+  <sub>Menu bar control for closed-lid stay awake — built for long agent runs</sub>
+</p>
 
-**Releases:** https://github.com/markadebartolo/MacStayOn/releases
+<p align="center">
+  <a href="https://github.com/markadebartolo/MacStayOn/releases/latest"><strong>Download for macOS</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/markadebartolo/MacStayOn/releases">All releases</a>
+  &nbsp;·&nbsp;
+  Windows: <a href="windows/PCStayOn/">PCStayOn</a>
+</p>
 
-Keep a laptop **awake when the lid is closed** so agents and other work keep running.
-
-| Platform | Location |
-|----------|----------|
-| **macOS** (menu bar) | this repo root — see below |
-| **Windows** (system tray) | [`windows/PCStayOn`](windows/PCStayOn/) |
+<p align="center">
+  <img src="https://img.shields.io/badge/macOS-13%2B-000000?style=flat-square&logo=apple&logoColor=white" alt="macOS 13+">
+  <img src="https://img.shields.io/badge/menu%20bar-only-F18636?style=flat-square" alt="Menu bar only">
+  <img src="https://img.shields.io/badge/notarized-Developer%20ID-007AFF?style=flat-square&logo=apple&logoColor=white" alt="Notarized">
+</p>
 
 ---
 
-## macOS
+## Why MacStayOn
 
-Menu-bar-only macOS app that keeps your MacBook **fully awake when the lid is closed** (including on battery). Toggle it off and normal lid-sleep behavior returns.
+Close the lid and keep working — **Cursor, Claude, builds, and other agents** can keep running without an external display. MacStayOn lives in the **menu bar** (no Dock icon). One tap turns stay-awake on; turn it off and **normal lid sleep** comes back.
 
-## What it does
+> **Safety first:** A closed Mac can overheat in a bag or under a blanket. MacStayOn warns you before enabling and can **turn itself off** on low battery or serious heat.
 
-| Toggle | Behavior |
-|--------|----------|
-| **On** (sun icon) | Runs `pmset -a disablesleep 1` (admin password once) **and** holds an IOKit `PreventSystemSleep` assertion so closing the lid does **not** sleep — on AC or battery |
-| **Off** (moon icon) | Restores the previous `disablesleep` value and releases the assertion |
+---
 
-State is saved in `UserDefaults` and re-applied on relaunch (re-applying On shows the admin dialog again).
+## Get started (macOS)
 
-`PreventSystemSleep` alone is **not** enough on battery: macOS still sleeps on lid-close. `pmset disablesleep` is what actually blocks that without an external display.
+1. Download **[MacStayOn-macos-arm64.zip](https://github.com/markadebartolo/MacStayOn/releases/latest)** from Releases.
+2. Unzip and open **MacStayOn.app** (notarized builds open normally; no right-click workaround needed).
+3. Click the **moon** icon in the menu bar.
+4. Tap **Keep awake with lid closed** → confirm the heat warning → enter your **admin password** once (required to block lid sleep on battery).
+5. Close the lid when you are ready. Open it again and MacStayOn asks whether to **restore normal sleep** or stay on.
 
-## Requirements
+**Requirements:** macOS 13 Ventura or later · Apple Silicon or Intel Mac
 
-- macOS 13 Ventura or later
-- Xcode (for `xcodebuild`) and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`)
-- **Admin password** when turning On (standard macOS authorization dialog)
+---
 
-## Permissions
+## The menu panel
 
-- **Admin authorization** when enabling (to change `pmset`). Canceling leaves the toggle Off and the menu says so.
-- No Accessibility or Full Disk Access required.
-- First launch of an unsigned local build: right-click → **Open**, or allow under **System Settings → Privacy & Security**.
-- Sandbox is **off** (required for IOKit + invoking privileged `pmset`).
+The popover matches what you see in the app — status first, then one primary action, then guards and session info.
 
-### Signed / notarized distribution (Apple Developer)
+| Section | What it does |
+|--------|----------------|
+| **Header** | MacStayOn name and **ON** / **OFF** pill |
+| **Status** | *Lid closed: normal sleep* or *Lid closed: stays awake* · AC or battery % |
+| **Primary button** | **Keep awake with lid closed** (orange) or **Restore normal sleep** when on |
+| **Heat & battery guard** | Toggle + *Restore normal sleep at* **10–50%** battery. Also turns off if macOS reports **serious heat**. Only while MacStayOn is on. |
+| **This session** | After you turn on: time awake + apps that were **actually working** (including background agents). Timeline shows *working* / *stalled* / *stopped*. **Clear last session** when you are done. |
+| **Quit** | Restores sleep settings and exits |
 
-First-time walkthrough: **[docs/DISTRIBUTE-MAC.md](docs/DISTRIBUTE-MAC.md)**  
-After certificates are set up:
+Session data stays **on your Mac** — nothing is sent to a server.
+
+---
+
+## What happens under the hood
+
+| When you turn **On** | When you turn **Off** or **Quit** |
+|----------------------|-----------------------------------|
+| `pmset disablesleep` (admin) + IOKit stay-awake assertion | Previous sleep settings restored via a small watchdog |
+| Works on **battery** without a monitor | Sleep is not left disabled after a clean quit |
+
+`PreventSystemSleep` alone is not enough on battery; MacStayOn uses the same approach power users rely on for closed-lid work.
+
+---
+
+## Windows
+
+**[PCStayOn](windows/PCStayOn/)** — system tray app for Windows (lid / power settings). Same idea, different OS APIs.
+
+---
+
+## Build from source
+
+Developers and contributors:
 
 ```bash
-export SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
-export NOTARY_PROFILE="MacStayOn-notary"
-./scripts/build.sh
-./scripts/notarize.sh
-```
-
-## Build & run
-
-```bash
+brew install xcodegen
 chmod +x scripts/build.sh
 ./scripts/build.sh
 open dist/MacStayOn.app
 ```
 
-Or in Xcode:
+Open in Xcode: `xcodegen generate && open MacStayOn.xcodeproj`
+
+**Sign & notarize** (for your own Developer ID): see **[docs/DISTRIBUTE-MAC.md](docs/DISTRIBUTE-MAC.md)**.
+
+---
+
+## Verify (optional)
 
 ```bash
-xcodegen generate
-open MacStayOn.xcodeproj
+pmset -g | grep disablesleep    # 1 while On
+pmset -g assertions | grep -i MacStayOn
+spctl -a -vv dist/MacStayOn.app # Notarized Developer ID (after notarize.sh)
 ```
 
-Then Run (⌘R). No Dock icon (`LSUIElement`) — look for the **sun** / **moon** icon in the menu bar.
+---
 
-### Menu
-
-1. **Lid closed** status and AC or battery  
-2. **Keep awake with lid closed** / **Restore normal sleep** — turning on shows a heat warning first, then the admin password dialog  
-3. **Heat & battery guard** — on by default, with a **Restore normal sleep at** battery menu (10–50%). Also turns off on serious heat. Applies only while MacStayOn is on.  
-4. **This session / Last session** — shown when a session exists. Time On plus apps that were working, with a clock-time timeline. Local only. **Clear last session** dismisses it.  
-5. **Quit MacStayOn** (restores prior sleep settings)
-
-When Stay Awake is On and you **open the lid** after it was closed, MacStayOn asks whether to **Turn Off** (restore normal lid sleep) or **Keep On**.
-
-### Quick verify
-
-```bash
-# After enabling (and approving admin):
-pmset -g | grep disablesleep          # expect: disablesleep 1
-pmset -g assertions | grep -i MacStayOn # PreventSystemSleep assertion
-
-# After Off or Quit:
-pmset -g | grep disablesleep          # expect absent or 0
-```
-
-## Notes
-
-- Turning On starts a privileged watchdog that restores the previous `disablesleep` when you turn Off, quit, or the app process exits — so sleep is not left disabled after a clean exit.
-- Closing the lid with MacStayOn **on** should leave the machine awake on battery or AC (no external display required).
-- Menu bar only — no settings windows.
+<p align="center">
+  <sub>Menu bar · Local session analytics · Notarized macOS builds on Releases</sub>
+</p>

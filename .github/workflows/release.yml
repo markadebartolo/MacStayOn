@@ -79,16 +79,23 @@ jobs:
           ## MacStayOn / PCStayOn ${TAG}
 
           ### macOS — \`MacStayOn-macos-arm64.zip\`
-          1. Unzip
-          2. Right-click \`MacStayOn.app\` → **Open** (Gatekeeper)
-          3. Use the sun/moon menu bar icon
+          **Menu bar app · closed-lid stay awake for agents**
+
+          1. Unzip and open **MacStayOn.app**
+          2. Click the **moon** in the menu bar → **Keep awake with lid closed**
+          3. Confirm the heat warning, then allow the one-time **admin** prompt
+
+          Panel includes **Heat & battery guard**, session timeline, and lid-open **restore sleep** prompt.
 
           ### Windows — \`PCStayOn-win-x64.zip\`
-          1. Unzip
-          2. Run \`PCStayOn.exe\` (SmartScreen: More info → Run anyway)
-          3. Use the sun/moon tray icon → **Turn On**
+          1. Unzip and run **PCStayOn.exe**
+          2. Tray icon → **Turn On**
 
-          **Note:** Closing the lid still blanks the built-in screen; the machine should keep running. Ventilate — do not leave it in a bag.
+          ---
+
+          **Safety:** Do not use in a bag or enclosed space. The guard can turn MacStayOn off on low battery or serious heat.
+
+          The built-in display turns off when the lid closes; the Mac should keep running.
           EOF
           )"
 
