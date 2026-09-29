@@ -3,6 +3,7 @@ import Combine
 import CoreGraphics
 import Darwin
 import Foundation
+import UserNotifications
 
 struct AppUsageRow: Identifiable, Equatable {
     var id: String { key }
@@ -44,7 +45,7 @@ final class SessionAnalytics: ObservableObject {
         var lastActiveAt: Date?
         var spans: [Span] = []
 
-        mutating func note(phase: String, at now: Date) {
+        mutating func note(phase: String, at now: Date, started: Date? = nil) {
             if var last = spans.last, last.phase == phase {
                 last.end = now
                 spans[spans.count - 1] = last
@@ -53,7 +54,7 @@ final class SessionAnalytics: ObservableObject {
             if !spans.isEmpty {
                 spans[spans.count - 1].end = now
             }
-            spans.append(Span(phase: phase, start: now, end: now))
+            spans.append(Span(phase: phase, start: started ?? now, end: now))
             if spans.count > 8 {
                 spans.removeFirst(spans.count - 8)
             }
@@ -75,10 +76,15 @@ final class SessionAnalytics: ObservableObject {
     private var ownPID: pid_t = 0
     private var activeKeys: Set<String> = []
     private var runningKeys: Set<String> = []
+    /// When CPU went quiet and the app was not frontmost. Cleared when work resumes.
+    private var quietSince: [String: Date] = [:]
+    private var stallNotified: Set<String> = []
 
     /// Combined `ps` %CPU across the app family to count as working.
     private let cpuPercentThreshold: Double = 1.0
     private let stickyActive: TimeInterval = 60
+    /// Quiet this long (not frontmost, low CPU) before a stall notification.
+    private let stallNotifyAfter: TimeInterval = 120
     private let maxRows = 12
 
     func start() {
@@ -88,11 +94,14 @@ final class SessionAnalytics: ObservableObject {
         lastSampleAt = Date()
         activeKeys = []
         runningKeys = []
+        quietSince = [:]
+        stallNotified = []
         elapsed = 0
         totals = [:]
         topApps = []
         hasSummary = false
         isLive = true
+        Self.requestNotificationPermission()
 
         let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.sample()
@@ -110,6 +119,8 @@ final class SessionAnalytics: ObservableObject {
         }
         activeKeys = []
         runningKeys = []
+        quietSince = [:]
+        stallNotified = []
         publishApps()
         isLive = false
         hasSummary = elapsed > 0 || !topApps.isEmpty
@@ -123,11 +134,27 @@ final class SessionAnalytics: ObservableObject {
         lastSampleAt = nil
         activeKeys = []
         runningKeys = []
+        quietSince = [:]
+        stallNotified = []
         totals = [:]
         topApps = []
         elapsed = 0
         isLive = false
         hasSummary = false
+    }
+
+    private static func requestNotificationPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    }
+
+    private static func postStallNotification(appName: String, at date: Date) {
+        let content = UNMutableNotificationContent()
+        content.title = "\(appName) stalled"
+        content.body = "Stopped working at \(clock(date)). It may be waiting on you."
+        content.sound = .default
+        let id = "stall-\(appName)-\(Int(date.timeIntervalSince1970))"
+        let request = UNNotificationRequest(identifier: id, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
     }
 
     static func clock(_ date: Date) -> String {
@@ -257,7 +284,26 @@ final class SessionAnalytics: ObservableObject {
             let sticky = acc.lastActiveAt.map { now.timeIntervalSince($0) <= stickyActive } ?? false
             let shouldCredit = isFront || cpuWorking || agentsAlive || sticky
 
-            if shouldCredit {
+            let cpuQuiet = !cpuWorking && !isFront
+            if cpuQuiet {
+                if quietSince[bid] == nil {
+                    quietSince[bid] = now
+                }
+            } else {
+                quietSince[bid] = nil
+                stallNotified.remove(bid)
+            }
+            let quietFor = quietSince[bid].map { now.timeIntervalSince($0) } ?? 0
+            let stalled = acc.seconds > 0 && cpuQuiet && quietFor >= stallNotifyAfter
+
+            if stalled {
+                let stalledAt = quietSince[bid] ?? now
+                acc.note(phase: "stalled", at: now, started: stalledAt)
+                totals[bid] = acc
+                if stallNotified.insert(bid).inserted {
+                    Self.postStallNotification(appName: acc.name, at: stalledAt)
+                }
+            } else if shouldCredit {
                 acc.seconds += delta
                 if !isFront {
                     acc.backgroundSeconds += delta
@@ -278,6 +324,8 @@ final class SessionAnalytics: ObservableObject {
             guard var acc = totals[key], acc.seconds > 0, !nextRunning.contains(key) else { continue }
             acc.note(phase: "stopped", at: sampleNow)
             totals[key] = acc
+            quietSince[key] = nil
+            stallNotified.remove(key)
         }
 
         activeKeys = nextActive
