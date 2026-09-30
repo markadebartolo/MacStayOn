@@ -55,15 +55,17 @@ final class SleepAssertionManager: ObservableObject {
     /// Must reopen past this before another warn can fire (hysteresis).
     private static let lidWarnResetAngleDegrees = 100
 
+    /// Stable path (not NSTemporaryDirectory) so On/Off and the root watchdog
+    /// always share the same sentinel/pid files for the login session.
     private var stateDir: URL {
-        FileManager.default.temporaryDirectory
-            .appendingPathComponent("MacStayOn-\(NSUserName())", isDirectory: true)
+        URL(fileURLWithPath: "/tmp/MacStayOn-\(NSUserName())", isDirectory: true)
     }
 
     private var prevFile: URL { stateDir.appendingPathComponent("disablesleep.prev") }
     private var sentinelFile: URL { stateDir.appendingPathComponent("restore.sentinel") }
     private var watchdogPidFile: URL { stateDir.appendingPathComponent("watchdog.pid") }
     private var enableScriptFile: URL { stateDir.appendingPathComponent("enable-watchdog.sh") }
+    private var watchdogPythonFile: URL { stateDir.appendingPathComponent("watchdog.py") }
 
     init() {
         let defaults = UserDefaults.standard
@@ -182,48 +184,108 @@ final class SleepAssertionManager: ObservableObject {
 
         let pid = ProcessInfo.processInfo.processIdentifier
         let prevPath = prevFile.path
-        let sentinelPath = sentinelFile.path
         let watchdogPidPath = watchdogPidFile.path
         let statePath = stateDir.path
+        let watchdogPyPath = watchdogPythonFile.path
+
+        // Root watchdog survives the auth dialog (setsid + ignore SIGHUP) and
+        // restores disablesleep=0 when Off drops a sentinel — no second password.
+        // Always restore to 0 (never re-apply a stuck SleepDisabled=1 as "prev").
+        let watchdogPython = """
+        #!/usr/bin/env python3
+        import os, signal, subprocess, sys, time
+
+        state = sys.argv[1]
+        app_pid = int(sys.argv[2])
+        sentinel = os.path.join(state, "restore.sentinel")
+        prev = os.path.join(state, "disablesleep.prev")
+        pid_file = os.path.join(state, "watchdog.pid")
+        log_path = os.path.join(state, "watchdog.log")
+
+        def log(msg):
+            try:
+                with open(log_path, "a") as f:
+                    f.write(msg + "\\n")
+            except OSError:
+                pass
+
+        try:
+            os.setsid()
+        except OSError:
+            pass
+        # Survive AppleScript's admin shell exit (SIGHUP). Keep SIGTERM so
+        # a later Turn On can replace a stale watchdog.
+        signal.signal(signal.SIGHUP, signal.SIG_IGN)
+
+        # Detach stdio so the privileged parent shell can exit cleanly.
+        try:
+            devnull = open(os.devnull, "r+")
+            os.dup2(devnull.fileno(), 0)
+            os.dup2(devnull.fileno(), 1)
+            os.dup2(devnull.fileno(), 2)
+        except OSError:
+            pass
+
+        log("watchdog start app=%s euid=%s" % (app_pid, os.geteuid()))
+        while True:
+            app_alive = True
+            try:
+                os.kill(app_pid, 0)
+            except OSError:
+                app_alive = False
+            if (not app_alive) or os.path.exists(sentinel):
+                log("restore sleep app_alive=%s sentinel=%s euid=%s" % (
+                    app_alive, os.path.exists(sentinel), os.geteuid()))
+                break
+            time.sleep(0.5)
+
+        rc = subprocess.call(["/usr/bin/pmset", "-a", "disablesleep", "0"])
+        log("pmset restore rc=%s" % rc)
+        for p in (sentinel, prev, pid_file):
+            try:
+                os.remove(p)
+            except OSError:
+                pass
+        log("watchdog done")
+        """
 
         let script = """
         #!/bin/bash
         set -euo pipefail
         mkdir -p '\(Self.sq(statePath))'
-        # macOS prints system-wide as SleepDisabled; some releases also show disablesleep.
-        PREV=$(pmset -g | awk 'tolower($1) ~ /^(disablesleep|sleepdisabled)$/ { print $2; exit }' || true)
-        if [ -z "${PREV}" ]; then PREV=0; fi
-        printf '%s' "${PREV}" > '\(Self.sq(prevPath))'
+        printf '0' > '\(Self.sq(prevPath))'
         chmod 644 '\(Self.sq(prevPath))'
-        pmset -a disablesleep 1
+        /usr/bin/pmset -a disablesleep 1
         if [ -f '\(Self.sq(watchdogPidPath))' ]; then
           OLD=$(cat '\(Self.sq(watchdogPidPath))' 2>/dev/null || true)
-          if [ -n "${OLD}" ]; then kill "${OLD}" 2>/dev/null || true; fi
+          if [ -n "${OLD}" ]; then
+            kill "${OLD}" 2>/dev/null || true
+            sleep 0.2
+            kill -9 "${OLD}" 2>/dev/null || true
+          fi
         fi
-        # Keep a privileged copy of the restore helper; background jobs from
-        # `do shell script … with administrator privileges` often lose root when
-        # the parent exits, so Turn Off also restores via a fresh admin call.
-        nohup /bin/bash -c '
-          PREV_FILE="\(Self.dq(prevPath))"
-          SENTINEL="\(Self.dq(sentinelPath))"
-          WATCHDOG_PID_FILE="\(Self.dq(watchdogPidPath))"
-          APP_PID=\(pid)
-          PREV=$(cat "$PREV_FILE" 2>/dev/null || echo 0)
-          while kill -0 "$APP_PID" 2>/dev/null; do
-            if [ -f "$SENTINEL" ]; then
-              break
-            fi
-            sleep 1
-          done
-          /usr/bin/pmset -a disablesleep "${PREV:-0}" || true
-          rm -f "$SENTINEL" "$PREV_FILE" "$WATCHDOG_PID_FILE"
-        ' >/dev/null 2>&1 &
-        echo $! > '\(Self.sq(watchdogPidPath))'
+        # nohup + background: keep root after AppleScript's admin shell exits.
+        nohup /usr/bin/python3 '\(Self.sq(watchdogPyPath))' '\(Self.sq(statePath))' '\(pid)' \
+          >/dev/null 2>&1 &
+        WPID=$!
+        echo "${WPID}" > '\(Self.sq(watchdogPidPath))'
         chmod 644 '\(Self.sq(watchdogPidPath))'
-        printf '%s\\n' "${PREV}"
+        disown "${WPID}" 2>/dev/null || true
+        sleep 0.4
+        if kill -0 "${WPID}" 2>/dev/null; then
+          echo "watchdog_ok"
+        else
+          echo "watchdog_failed" >&2
+          exit 1
+        fi
         """
 
         do {
+            try watchdogPython.write(to: watchdogPythonFile, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o755],
+                ofItemAtPath: watchdogPythonFile.path
+            )
             try script.write(to: enableScriptFile, atomically: true, encoding: .utf8)
             try FileManager.default.setAttributes(
                 [.posixPermissions: 0o755],
@@ -265,7 +327,6 @@ final class SleepAssertionManager: ObservableObject {
 
     private func deactivate(persistOff: Bool) {
         stopSessionHelpers(retainAnalytics: true)
-        requestWatchdogRestore()
         releaseAssertion()
 
         isEnabled = false
@@ -273,21 +334,26 @@ final class SleepAssertionManager: ObservableObject {
             UserDefaults.standard.set(false, forKey: Self.defaultsKey)
         }
 
-        let deadline = Date().addingTimeInterval(2.0)
+        // Prefer the root watchdog started at Turn On (no password). Only fall
+        // back to an admin prompt if sleep is still disabled after a short wait.
+        requestWatchdogRestore()
+
+        let deadline = Date().addingTimeInterval(4.0)
         while Date() < deadline {
             if currentDisablesleep() == 0 { break }
-            Thread.sleep(forTimeInterval: 0.15)
+            Thread.sleep(forTimeInterval: 0.2)
         }
 
-        // Watchdog often cannot keep admin rights after the enable dialog exits.
-        // Always finish restore here if SleepDisabled is still set (may prompt).
         if currentDisablesleep() != 0 {
-            restoreDisablesleepWithAdmin(preferringSavedPrev: true)
+            // Last resort — watchdog missing or lost privileges.
+            _ = restoreDisablesleepWithAdmin(preferringSavedPrev: true)
         }
 
         UserDefaults.standard.removeObject(forKey: Self.savedPrevKey)
-        cleanupStateFiles()
-        lastError = nil
+        if currentDisablesleep() == 0 {
+            cleanupStateFiles()
+            lastError = nil
+        }
         refreshStatusDetail()
     }
 
@@ -319,7 +385,8 @@ final class SleepAssertionManager: ObservableObject {
     }
 
     private func cleanupStateFiles() {
-        for url in [sentinelFile, prevFile, watchdogPidFile, enableScriptFile] {
+        let logFile = stateDir.appendingPathComponent("watchdog.log")
+        for url in [sentinelFile, prevFile, watchdogPidFile, enableScriptFile, watchdogPythonFile, logFile] {
             try? FileManager.default.removeItem(at: url)
         }
     }
