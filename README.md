@@ -8,13 +8,14 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/markadebartolo/MacStayOn/releases/latest"><strong>Download for macOS</strong></a>
+  <a href="https://github.com/markadebartolo/MacStayOn/releases/latest"><strong>Download for Mac (Apple Silicon)</strong></a>
   &nbsp;·&nbsp;
   <a href="https://github.com/markadebartolo/MacStayOn/releases">All releases</a>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/macOS-13%2B-000000?style=flat-square&logo=apple&logoColor=white" alt="macOS 13+">
+  <img src="https://img.shields.io/badge/Apple%20Silicon-arm64-000000?style=flat-square&logo=apple&logoColor=white" alt="Apple Silicon arm64">
   <img src="https://img.shields.io/badge/menu%20bar-only-F18636?style=flat-square" alt="Menu bar only">
   <img src="https://img.shields.io/badge/notarized-Developer%20ID-007AFF?style=flat-square&logo=apple&logoColor=white" alt="Notarized">
 </p>
@@ -41,7 +42,19 @@ Close the lid and keep working — **Cursor, Claude, builds, and other agents** 
 4. Tap **Keep awake with lid closed** → confirm the heat warning → approve **admin once** with **Touch ID** when offered (or password) so MacStayOn can block lid sleep on battery.
 5. Close the lid when you are ready. Open it again and MacStayOn asks whether to **restore normal sleep** or stay on.
 
-**Requirements:** macOS 13 Ventura or later · Apple Silicon or Intel Mac
+### Who can use the download
+
+| | |
+|--|--|
+| **Works on** | **Apple Silicon** Macs (M1, M2, M3, M4, …) · **macOS 13 Ventura** or later |
+| **File** | `MacStayOn-macos-arm64.zip` — **arm64 only** (not a universal / Intel build) |
+| **Best on** | MacBook / MacBook Pro / MacBook Air (lid close is the main use case) |
+| **Also OK** | Desktop Apple Silicon Macs if you still want stay-awake / no-screensaver — no lid flash or lid-open prompt |
+| **Not for** | **Intel Macs**, Windows, or older macOS (12 and below) |
+
+**Lid-angle sensor** (orange flash while closing past ~85°) is only on newer MacBooks that have that hardware. Older Apple Silicon MacBooks without it still get full stay-awake; they just skip the flash.
+
+Not sure which chip you have? Apple menu → **About This Mac** — look for **Chip** (e.g. Apple M2). If it says **Intel**, this download will not run.
 
 ---
 
@@ -55,7 +68,7 @@ The popover matches what you see in the app — status first, then one primary a
 | **Status** | *Lid closed: normal sleep* or *Lid closed: stays awake* · AC or battery % |
 | **Primary button** | **Keep awake with lid closed** (orange) or **Restore normal sleep** when on |
 | **Heat & battery guard** | Toggle + *Restore normal sleep at* **10–50%** battery. Also turns off if macOS reports **serious heat**. Only while MacStayOn is on. |
-| **Lid-close flash** | While On, closing the lid past ~85° pulses the screen orange until the lid is fully shut (or reopened past that angle). |
+| **Lid-close flash** | While On, closing the lid past ~85° pulses the screen orange until the lid is fully shut (or reopened). Needs a lid-angle sensor; skipped quietly on Macs without one. |
 | **This session** | Time awake (always visible). Expand to see apps that were working, timeline, and **Clear last session**. Collapsed by default. |
 | **Quit** | Restores sleep settings and exits |
 

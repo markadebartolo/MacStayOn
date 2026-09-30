@@ -57,11 +57,14 @@ jobs:
           ### macOS — \`MacStayOn-macos-arm64.zip\`
           **Menu bar app · closed-lid stay awake for agents**
 
+          **Requires:** Apple Silicon (M1/M2/M3/M4…) · macOS 13+ · **arm64 only** (not Intel).
+
           1. Unzip and open **MacStayOn.app**
           2. Click the **moon** in the menu bar → **Keep awake with lid closed**
           3. Confirm the heat warning, then allow the one-time **admin** prompt
 
           Panel includes **Heat & battery guard**, session timeline, and lid-open **restore sleep** prompt.
+          Lid-close orange flash needs a lid-angle sensor; older MacBooks without it still stay awake.
 
           ---
 
