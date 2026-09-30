@@ -62,32 +62,48 @@ enum HardwareProfile {
         return info
     }
 
-    /// Fanless MacBook Air — closed-lid work heats and throttles faster.
-    static var isMacBookAir: Bool {
-        matchesMacBookAir(modelIdentifier: current.modelIdentifier, marketingName: current.marketingName)
+    /// Fanless portables (MacBook Air, MacBook Neo) — closed-lid work heats/throttles faster.
+    static var isFanlessPortable: Bool {
+        matchesFanlessPortable(modelIdentifier: current.modelIdentifier, marketingName: current.marketingName)
     }
 
-    static func matchesMacBookAir(modelIdentifier: String, marketingName: String) -> Bool {
-        if marketingName.localizedCaseInsensitiveContains("MacBook Air") {
+    /// Known fanless model ids when marketing name is missing (Neo = Mac17,5).
+    private static let knownFanlessModelIdentifiers: Set<String> = [
+        "Mac17,5", // MacBook Neo (A18 Pro, fanless)
+    ]
+
+    static func matchesFanlessPortable(modelIdentifier: String, marketingName: String) -> Bool {
+        let name = marketingName.lowercased()
+        if name.contains("macbook air") || name.contains("macbook neo") {
             return true
         }
-        // Older identifiers were MacBookAir10,1; keep the prefix check.
+        // Older Air identifiers were MacBookAir10,1; Neo uses Mac17,5-style ids.
         if modelIdentifier.localizedCaseInsensitiveContains("MacBookAir") {
+            return true
+        }
+        if knownFanlessModelIdentifiers.contains(modelIdentifier) {
             return true
         }
         return false
     }
 
-    /// Turn On heat copy. Air gets a shorter closed-lid advisory.
+    /// Turn On heat copy. Fanless Air / Neo get a shorter closed-lid advisory.
     static var enableHeatWarningBody: String {
         let common = """
         MacStayOn will prevent sleep when you close the lid so agents and other work can keep running.
 
         A closed Mac can overheat in a confined space. Do not put it in a bag, under a blanket, or in another enclosed space while this is on.
         """
-        guard isMacBookAir else { return common }
+        guard isFanlessPortable else { return common }
 
-        let name = current.marketingName.isEmpty ? "MacBook Air" : current.marketingName
+        let name: String
+        if !current.marketingName.isEmpty {
+            name = current.marketingName
+        } else if knownFanlessModelIdentifiers.contains(current.modelIdentifier) {
+            name = "MacBook Neo"
+        } else {
+            name = "MacBook Air"
+        }
         return """
         \(common)
 

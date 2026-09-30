@@ -155,9 +155,20 @@ final class SleepAssertionManager: ObservableObject {
         }
 
         let alert = NSAlert()
-        alert.messageText = HardwareProfile.isMacBookAir
-            ? "Keep MacBook Air awake with lid closed?"
-            : "Keep Mac awake with lid closed?"
+        if HardwareProfile.isFanlessPortable {
+            let info = HardwareProfile.current
+            if info.marketingName.localizedCaseInsensitiveContains("Neo")
+                || info.modelIdentifier == "Mac17,5" {
+                alert.messageText = "Keep MacBook Neo awake with lid closed?"
+            } else if info.marketingName.localizedCaseInsensitiveContains("Air")
+                || info.modelIdentifier.localizedCaseInsensitiveContains("MacBookAir") {
+                alert.messageText = "Keep MacBook Air awake with lid closed?"
+            } else {
+                alert.messageText = "Keep this fanless Mac awake with lid closed?"
+            }
+        } else {
+            alert.messageText = "Keep Mac awake with lid closed?"
+        }
         alert.informativeText = HardwareProfile.enableHeatWarningBody
         alert.alertStyle = .warning
         alert.icon = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: nil)

@@ -30,7 +30,7 @@
 
 Close the lid and keep working — **Cursor, Claude, builds, and other agents** can keep running without an external display. MacStayOn lives in the **menu bar** (no Dock icon). One tap turns stay-awake on; turn it off and **normal lid sleep** comes back.
 
-> **Safety first:** A closed Mac can overheat in a bag or under a blanket. MacStayOn warns you before enabling and can **turn itself off** on low battery or serious heat. On a **MacBook Air** (fanless), the Turn On warning also advises shorter closed-lid sessions.
+> **Safety first:** A closed Mac can overheat in a bag or under a blanket. MacStayOn warns you before enabling and can **turn itself off** on low battery or serious heat. On a fanless **MacBook Air** or **MacBook Neo**, the Turn On warning also advises shorter closed-lid sessions.
 
 ---
 
