@@ -31,6 +31,22 @@ APP_DST="$ROOT/dist/MacStayOn.app"
 rm -rf "$APP_DST"
 cp -R "$APP_SRC" "$APP_DST"
 
+# Fail closed if Info.plist does not match project.yml (v1.1.5 shipped labeled 1.1.4).
+EXPECTED_MARKETING="$(sed -n 's/.*MARKETING_VERSION: *"\([^"]*\)".*/\1/p' "$ROOT/project.yml" | head -1)"
+EXPECTED_BUILD="$(sed -n 's/.*CURRENT_PROJECT_VERSION: *"\([^"]*\)".*/\1/p' "$ROOT/project.yml" | head -1)"
+ACTUAL_MARKETING="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_DST/Contents/Info.plist")"
+ACTUAL_BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_DST/Contents/Info.plist")"
+if [[ -z "$EXPECTED_MARKETING" || -z "$EXPECTED_BUILD" ]]; then
+  echo "error: could not read MARKETING_VERSION / CURRENT_PROJECT_VERSION from project.yml" >&2
+  exit 1
+fi
+if [[ "$ACTUAL_MARKETING" != "$EXPECTED_MARKETING" || "$ACTUAL_BUILD" != "$EXPECTED_BUILD" ]]; then
+  echo "error: Info.plist is $ACTUAL_MARKETING ($ACTUAL_BUILD) but project.yml is $EXPECTED_MARKETING ($EXPECTED_BUILD)" >&2
+  echo "hint: clean DerivedData and rebuild (rm -rf build/DerivedData)" >&2
+  exit 1
+fi
+echo "Version OK: $ACTUAL_MARKETING ($ACTUAL_BUILD)"
+
 # Ad-hoc / linker-signed builds often get password-only admin dialogs.
 # Prefer Developer ID (or SIGN_IDENTITY) so macOS can offer Touch ID.
 IDENTITY="${SIGN_IDENTITY:-}"

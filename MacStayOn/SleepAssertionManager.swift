@@ -38,6 +38,8 @@ final class SleepAssertionManager: ObservableObject {
     private var isReconcilingSleep = false
     /// Avoid admin-dialog spam if the user cancels restore; still show CRITICAL in the menu.
     private var lastSleepReconcileAdminAt: Date?
+    /// Keep the process awake while Off-but-SleepDisabled so the 5s reconcile timer cannot nap away.
+    private var stuckSleepActivity: NSObjectProtocol?
 
     let analytics = SessionAnalytics()
 
@@ -70,6 +72,7 @@ final class SleepAssertionManager: ObservableObject {
 
     private var prevFile: URL { stateDir.appendingPathComponent("disablesleep.prev") }
     private var sentinelFile: URL { stateDir.appendingPathComponent("restore.sentinel") }
+    private var sessionFile: URL { stateDir.appendingPathComponent("session.id") }
     private var watchdogPidFile: URL { stateDir.appendingPathComponent("watchdog.pid") }
     private var enableScriptFile: URL { stateDir.appendingPathComponent("enable-watchdog.sh") }
     private var watchdogPythonFile: URL { stateDir.appendingPathComponent("watchdog.py") }
@@ -98,6 +101,9 @@ final class SleepAssertionManager: ObservableObject {
     deinit {
         guardTimer?.invalidate()
         releaseAssertion()
+        if let stuckSleepActivity {
+            ProcessInfo.processInfo.endActivity(stuckSleepActivity)
+        }
     }
 
     /// Call once the menu bar UI is up (or from AppDelegate.didFinishLaunching).
@@ -210,9 +216,12 @@ final class SleepAssertionManager: ObservableObject {
 
         let pid = ProcessInfo.processInfo.processIdentifier
         let prevPath = prevFile.path
+        let sessionPath = sessionFile.path
         let watchdogPidPath = watchdogPidFile.path
         let statePath = stateDir.path
         let watchdogPyPath = watchdogPythonFile.path
+        // Unique per Turn On so a dying previous watchdog cannot undo pmset after we re-enable.
+        let sessionID = "\(pid)-\(UInt64(Date().timeIntervalSince1970 * 1000))-\(UInt64.random(in: 0...UInt64.max))"
 
         // Root watchdog survives the auth dialog (setsid + ignore SIGHUP) and
         // restores disablesleep=0 when Off drops a sentinel — no second password.
@@ -228,10 +237,12 @@ final class SleepAssertionManager: ObservableObject {
 
         state = sys.argv[1]
         app_pid = int(sys.argv[2])
+        session = sys.argv[3]
         sentinel = os.path.join(state, "restore.sentinel")
         prev = os.path.join(state, "disablesleep.prev")
         pid_file = os.path.join(state, "watchdog.pid")
         ready_file = os.path.join(state, "watchdog.ready")
+        session_file = os.path.join(state, "session.id")
         log_path = os.path.join(state, "watchdog.log")
 
         def log(msg):
@@ -256,6 +267,13 @@ final class SleepAssertionManager: ObservableObject {
                     return True
                 return False
 
+        def session_is_current():
+            try:
+                with open(session_file, "r") as f:
+                    return f.read().strip() == session
+            except OSError:
+                return False
+
         try:
             os.setsid()
         except OSError:
@@ -274,7 +292,7 @@ final class SleepAssertionManager: ObservableObject {
             pass
 
         euid = os.geteuid()
-        log("watchdog start app=%s euid=%s" % (app_pid, euid))
+        log("watchdog start app=%s euid=%s session=%s" % (app_pid, euid, session))
         if euid != 0:
             log("FATAL: watchdog is not root — cannot restore pmset; exiting")
             try:
@@ -297,6 +315,16 @@ final class SleepAssertionManager: ObservableObject {
                 break
             time.sleep(0.5)
 
+        # A newer Turn On owns SleepDisabled — do not undo it.
+        if not session_is_current():
+            log("skip restore — session superseded")
+            for p in (pid_file, ready_file):
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
+            sys.exit(0)
+
         rc = subprocess.call(["/usr/bin/pmset", "-a", "disablesleep", "0"])
         log("pmset restore rc=%s" % rc)
         for p in (sentinel, prev, pid_file, ready_file):
@@ -313,19 +341,26 @@ final class SleepAssertionManager: ObservableObject {
         set -euo pipefail
         mkdir -p '\(Self.sq(statePath))'
         rm -f '\(Self.sq(readyPath))'
+        # Claim the session BEFORE killing the old watchdog so a late restore skips.
+        printf '%s' '\(Self.sq(sessionID))' > '\(Self.sq(sessionPath))'
+        chmod 644 '\(Self.sq(sessionPath))'
         printf '0' > '\(Self.sq(prevPath))'
         chmod 644 '\(Self.sq(prevPath))'
-        /usr/bin/pmset -a disablesleep 1
+        # Kill any prior watchdog (+ process group) BEFORE pmset 1 so a mid-restore
+        # pmset 0 cannot race ahead of the new Stay Awake session.
         if [ -f '\(Self.sq(watchdogPidPath))' ]; then
           OLD=$(cat '\(Self.sq(watchdogPidPath))' 2>/dev/null || true)
           if [ -n "${OLD}" ]; then
-            kill "${OLD}" 2>/dev/null || true
-            sleep 0.2
-            kill -9 "${OLD}" 2>/dev/null || true
+            kill -9 -"${OLD}" 2>/dev/null || kill -9 "${OLD}" 2>/dev/null || true
+            for _ in 1 2 3 4 5 6 7 8 9 10; do
+              kill -0 "${OLD}" 2>/dev/null || break
+              sleep 0.1
+            done
           fi
         fi
+        /usr/bin/pmset -a disablesleep 1
         # Background + redirects only — never nohup (breaks under AppleScript admin).
-        /usr/bin/python3 '\(Self.sq(watchdogPyPath))' '\(Self.sq(statePath))' '\(pid)' \
+        /usr/bin/python3 '\(Self.sq(watchdogPyPath))' '\(Self.sq(statePath))' '\(pid)' '\(Self.sq(sessionID))' \
           </dev/null >/dev/null 2>&1 &
         WPID=$!
         echo "${WPID}" > '\(Self.sq(watchdogPidPath))'
@@ -338,7 +373,7 @@ final class SleepAssertionManager: ObservableObject {
           fi
           sleep 0.1
         done
-        if kill -0 "${WPID}" 2>/dev/null; then
+        if [ -f '\(Self.sq(readyPath))' ] && kill -0 "${WPID}" 2>/dev/null; then
           echo "watchdog_ok"
           exit 0
         fi
@@ -374,7 +409,8 @@ final class SleepAssertionManager: ObservableObject {
             // or a stuck SleepDisabled=1 as the value to write back later.
             UserDefaults.standard.set("0", forKey: Self.savedPrevKey)
             // Refuse to claim On unless sleep is actually disabled and a watchdog is up.
-            if currentDisablesleep() == 0 || !isWatchdogProcessAlive() {
+            // Treat unreadable pmset output as failure (never assume SleepDisabled=0).
+            if readSleepDisabled() != 1 || !isWatchdogProcessAlive() {
                 isEnabled = false
                 UserDefaults.standard.set(false, forKey: Self.defaultsKey)
                 lastError = "Stay Awake did not fully enable — kept Off and restored normal lid sleep."
@@ -385,6 +421,7 @@ final class SleepAssertionManager: ObservableObject {
             _ = createAssertion()
             isEnabled = true
             UserDefaults.standard.set(true, forKey: Self.defaultsKey)
+            endStuckSleepActivity()
             startSessionHelpers()
             refreshStatusDetail()
         case .cancelled:
@@ -427,27 +464,30 @@ final class SleepAssertionManager: ObservableObject {
     @discardableResult
     private func ensureNormalSleepWhileOff(promptAdminIfNeeded: Bool) -> Bool {
         guard !isEnabled else { return false }
-        if currentDisablesleep() == 0 {
+        if readSleepDisabled() == 0 {
             // Do not wipe state on every poll — only after we know sleep is normal
             // and there is no live watchdog still shutting down.
             if !isWatchdogProcessAlive() {
                 cleanupStateFiles()
             }
+            endStuckSleepActivity()
             return true
         }
+        // Unreadable pmset with no Stay Awake artifacts → do not spam admin.
+        if readSleepDisabled() == nil, !hasStayAwakeStateArtifacts() {
+            endStuckSleepActivity()
+            return true
+        }
+        // 1, or nil with our state files still present — unsafe until we confirm 0.
+        beginStuckSleepActivity()
         if isReconcilingSleep { return false }
         isReconcilingSleep = true
         defer { isReconcilingSleep = false }
 
         requestWatchdogRestore()
-        let deadline = Date().addingTimeInterval(4.0)
-        while Date() < deadline {
-            if currentDisablesleep() == 0 { break }
-            Thread.sleep(forTimeInterval: 0.2)
-        }
-
-        if currentDisablesleep() == 0 {
+        if waitForSleepDisabledClear(timeout: 1.6) {
             cleanupStateFiles()
+            endStuckSleepActivity()
             return true
         }
 
@@ -468,8 +508,9 @@ final class SleepAssertionManager: ObservableObject {
         lastSleepReconcileAdminAt = Date()
 
         let restored = restoreDisablesleepWithAdmin(preferringSavedPrev: true)
-        if restored || currentDisablesleep() == 0 {
+        if restored || readSleepDisabled() == 0 {
             cleanupStateFiles()
+            endStuckSleepActivity()
             lastError = nil
             lastSleepReconcileAdminAt = nil
             return true
@@ -480,6 +521,41 @@ final class SleepAssertionManager: ObservableObject {
         return false
     }
 
+    /// Poll SleepDisabled without freezing the menu bar for seconds (`Thread.sleep` on main).
+    @discardableResult
+    private func waitForSleepDisabledClear(timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if readSleepDisabled() == 0 { return true }
+            if Thread.isMainThread {
+                _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.12))
+            } else {
+                Thread.sleep(forTimeInterval: 0.12)
+            }
+        }
+        return readSleepDisabled() == 0
+    }
+
+    private func beginStuckSleepActivity() {
+        guard stuckSleepActivity == nil else { return }
+        stuckSleepActivity = ProcessInfo.processInfo.beginActivity(
+            options: [
+                .idleSystemSleepDisabled,
+                .suddenTerminationDisabled,
+                .automaticTerminationDisabled,
+                .userInitiated,
+            ],
+            reason: "MacStayOn restoring lid sleep — Off but SleepDisabled stuck"
+        )
+    }
+
+    private func endStuckSleepActivity() {
+        if let stuckSleepActivity {
+            ProcessInfo.processInfo.endActivity(stuckSleepActivity)
+            self.stuckSleepActivity = nil
+        }
+    }
+
     /// Restores normal lid sleep via admin auth.
     /// Always writes `disablesleep 0` — never re-apply a stuck SleepDisabled=1 as "previous".
     @discardableResult
@@ -487,7 +563,7 @@ final class SleepAssertionManager: ObservableObject {
         _ = preferringSavedPrev // retained for call-site clarity; value is ignored on purpose.
         switch Self.runAdminCommand("/usr/bin/pmset", arguments: ["-a", "disablesleep", "0"]) {
         case .success:
-            return currentDisablesleep() == 0
+            return readSleepDisabled() == 0
         case .cancelled:
             lastError = "Admin canceled — sleep may still be disabled. Turn Off again to restore lid sleep."
             return false
@@ -497,20 +573,50 @@ final class SleepAssertionManager: ObservableObject {
         }
     }
 
-    /// True if the pid in `watchdog.pid` is still alive (best-effort).
+    /// True if the pid in `watchdog.pid` is still alive and looks like our watchdog.
     private func isWatchdogProcessAlive() -> Bool {
         guard let text = try? String(contentsOf: watchdogPidFile, encoding: .utf8) else { return false }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let pid = Int32(trimmed), pid > 0 else { return false }
-        return kill(pid, 0) == 0
+        if kill(pid, 0) != 0 { return false }
+        // PID reuse can leave a live unrelated process; require our script in the argv.
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/bin/ps")
+        proc.arguments = ["-p", String(pid), "-o", "args="]
+        let out = Pipe()
+        proc.standardOutput = out
+        proc.standardError = Pipe()
+        do {
+            try proc.run()
+            proc.waitUntilExit()
+        } catch {
+            // Existence check already passed; be conservative while On.
+            return true
+        }
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        let args = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if args.isEmpty { return true }
+        return args.contains("watchdog.py") || args.contains("MacStayOn")
     }
 
     private func cleanupStateFiles() {
         let logFile = stateDir.appendingPathComponent("watchdog.log")
         let readyFile = stateDir.appendingPathComponent("watchdog.ready")
-        for url in [sentinelFile, prevFile, watchdogPidFile, enableScriptFile, watchdogPythonFile, logFile, readyFile] {
+        let notRootFile = stateDir.appendingPathComponent("watchdog.notroot")
+        for url in [
+            sentinelFile, prevFile, sessionFile, watchdogPidFile,
+            enableScriptFile, watchdogPythonFile, logFile, readyFile, notRootFile,
+        ] {
             try? FileManager.default.removeItem(at: url)
         }
+    }
+
+    /// True when /tmp state suggests we left (or are leaving) a Stay Awake session.
+    private func hasStayAwakeStateArtifacts() -> Bool {
+        let readyFile = stateDir.appendingPathComponent("watchdog.ready")
+        let candidates = [prevFile, sessionFile, watchdogPidFile, sentinelFile, readyFile]
+        return candidates.contains { FileManager.default.fileExists(atPath: $0.path) }
     }
 
     // MARK: - Session helpers (analytics + lid)
@@ -748,13 +854,16 @@ final class SleepAssertionManager: ObservableObject {
         // While enabled (lid open or closed), keep screensaver/display assertions alive.
         if isEnabled {
             ensureAssertionsHeld()
+            let sleepDisabled = readSleepDisabled()
             // Watchdog died while On → SleepDisabled can stick after quit. Force Off + restore.
-            if currentDisablesleep() != 0, !isWatchdogProcessAlive() {
+            // Also trip when pmset is unreadable and the watchdog is gone (fail closed).
+            if !isWatchdogProcessAlive(), sleepDisabled != 0 {
                 tripGuard("Turned off — sleep watchdog stopped. Normal lid sleep was restored for safety.")
                 return
             }
             // On but SleepDisabled cleared externally → UI was lying; snap to Off.
-            if currentDisablesleep() == 0 {
+            // Only when we positively read 0 (nil means unknown — do not snap).
+            if sleepDisabled == 0 {
                 isEnabled = false
                 UserDefaults.standard.set(false, forKey: Self.defaultsKey)
                 releaseAssertion()
@@ -765,8 +874,11 @@ final class SleepAssertionManager: ObservableObject {
             }
         } else if !isActivating {
             // Off must obey the user setting: never leave system sleep disabled.
-            if currentDisablesleep() != 0 {
+            // nil (unreadable) is treated as unsafe inside ensureNormalSleepWhileOff.
+            if readSleepDisabled() != 0 {
                 _ = ensureNormalSleepWhileOff(promptAdminIfNeeded: true)
+            } else {
+                endStuckSleepActivity()
             }
             refreshStatusDetail()
             return
@@ -800,12 +912,20 @@ final class SleepAssertionManager: ObservableObject {
 
         let onAC = Self.isOnACPower()
         let power = onAC ? "AC power" : "on battery"
-        let disablesleep = currentDisablesleep()
+        let disablesleep = readSleepDisabled()
 
         if isEnabled {
-            statusDetail = "SleepDisabled=\(disablesleep) · system \(systemAssertionID != 0 ? "on" : "off") · display/screensaver \(displayAssertionID != 0 ? "on" : "off") · \(power)"
-        } else if disablesleep != 0 {
+            let flag: String
+            if let disablesleep {
+                flag = "SleepDisabled=\(disablesleep)"
+            } else {
+                flag = "SleepDisabled=?"
+            }
+            statusDetail = "\(flag) · system \(systemAssertionID != 0 ? "on" : "off") · display/screensaver \(displayAssertionID != 0 ? "on" : "off") · \(power)"
+        } else if disablesleep == 1 || (disablesleep == nil && hasStayAwakeStateArtifacts()) {
             statusDetail = "CRITICAL: Off but lid sleep still disabled — approve admin to restore (bag risk)"
+        } else if disablesleep == nil {
+            statusDetail = "Could not verify lid sleep · \(power)"
         } else {
             statusDetail = "Normal lid sleep · \(power)"
         }
@@ -814,7 +934,9 @@ final class SleepAssertionManager: ObservableObject {
     /// Reads system-wide sleep-disabled flag. On current macOS, `pmset -g`
     /// reports this as `SleepDisabled` under "System-wide power settings", not
     /// as `disablesleep` in the "Currently in use" block.
-    private func currentDisablesleep() -> Int {
+    /// Returns nil when pmset fails or the key is missing — callers must not
+    /// treat that as “sleep is normal” (bag-safety).
+    private func readSleepDisabled() -> Int? {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/pmset")
         proc.arguments = ["-g"]
@@ -824,6 +946,7 @@ final class SleepAssertionManager: ObservableObject {
         do {
             try proc.run()
             proc.waitUntilExit()
+            guard proc.terminationStatus == 0 else { return nil }
             let data = out.fileHandleForReading.readDataToEndOfFile()
             let text = String(data: data, encoding: .utf8) ?? ""
             for line in text.split(separator: "\n") {
@@ -835,7 +958,7 @@ final class SleepAssertionManager: ObservableObject {
                 }
             }
         } catch {}
-        return 0
+        return nil
     }
 
     // MARK: - Admin command
