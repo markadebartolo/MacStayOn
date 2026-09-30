@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import Darwin
 import Foundation
 import IOKit.ps
 import IOKit.pwr_mgt
@@ -272,7 +273,16 @@ final class SleepAssertionManager: ObservableObject {
         except OSError:
             pass
 
-        log("watchdog start app=%s euid=%s" % (app_pid, os.geteuid()))
+        euid = os.geteuid()
+        log("watchdog start app=%s euid=%s" % (app_pid, euid))
+        if euid != 0:
+            log("FATAL: watchdog is not root — cannot restore pmset; exiting")
+            try:
+                with open(os.path.join(state, "watchdog.notroot"), "w") as f:
+                    f.write(str(euid))
+            except OSError:
+                pass
+            sys.exit(2)
         try:
             with open(ready_file, "w") as f:
                 f.write(str(os.getpid()))
@@ -359,13 +369,12 @@ final class SleepAssertionManager: ObservableObject {
         }
 
         switch Self.runAdminCommand("/bin/bash", arguments: [enableScriptFile.path]) {
-        case .success(let prev):
-            let trimmed = prev.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty {
-                UserDefaults.standard.set(trimmed, forKey: Self.savedPrevKey)
-            }
+        case .success:
+            // Always remember restore target 0 — never persist script stdout ("watchdog_ok")
+            // or a stuck SleepDisabled=1 as the value to write back later.
+            UserDefaults.standard.set("0", forKey: Self.savedPrevKey)
             // Refuse to claim On unless sleep is actually disabled and a watchdog is up.
-            if currentDisablesleep() == 0 || !FileManager.default.fileExists(atPath: readyPath) {
+            if currentDisablesleep() == 0 || !isWatchdogProcessAlive() {
                 isEnabled = false
                 UserDefaults.standard.set(false, forKey: Self.defaultsKey)
                 lastError = "Stay Awake did not fully enable — kept Off and restored normal lid sleep."
@@ -419,7 +428,11 @@ final class SleepAssertionManager: ObservableObject {
     private func ensureNormalSleepWhileOff(promptAdminIfNeeded: Bool) -> Bool {
         guard !isEnabled else { return false }
         if currentDisablesleep() == 0 {
-            cleanupStateFiles()
+            // Do not wipe state on every poll — only after we know sleep is normal
+            // and there is no live watchdog still shutting down.
+            if !isWatchdogProcessAlive() {
+                cleanupStateFiles()
+            }
             return true
         }
         if isReconcilingSleep { return false }
@@ -467,24 +480,14 @@ final class SleepAssertionManager: ObservableObject {
         return false
     }
 
-    /// Restores `pmset disablesleep` / system-wide SleepDisabled via admin auth.
+    /// Restores normal lid sleep via admin auth.
+    /// Always writes `disablesleep 0` — never re-apply a stuck SleepDisabled=1 as "previous".
     @discardableResult
     private func restoreDisablesleepWithAdmin(preferringSavedPrev: Bool) -> Bool {
-        let prev: String
-        if preferringSavedPrev,
-           let saved = UserDefaults.standard.string(forKey: Self.savedPrevKey),
-           saved.allSatisfy(\.isNumber) {
-            prev = saved
-        } else if let disk = try? String(contentsOf: prevFile, encoding: .utf8),
-                  disk.trimmingCharacters(in: .whitespacesAndNewlines).allSatisfy(\.isNumber) {
-            prev = disk.trimmingCharacters(in: .whitespacesAndNewlines)
-        } else {
-            prev = "0"
-        }
-
-        switch Self.runAdminCommand("/usr/bin/pmset", arguments: ["-a", "disablesleep", prev]) {
+        _ = preferringSavedPrev // retained for call-site clarity; value is ignored on purpose.
+        switch Self.runAdminCommand("/usr/bin/pmset", arguments: ["-a", "disablesleep", "0"]) {
         case .success:
-            return currentDisablesleep() == 0 || Int(prev) == currentDisablesleep()
+            return currentDisablesleep() == 0
         case .cancelled:
             lastError = "Admin canceled — sleep may still be disabled. Turn Off again to restore lid sleep."
             return false
@@ -492,6 +495,14 @@ final class SleepAssertionManager: ObservableObject {
             lastError = "Could not restore lid sleep. \(message)"
             return false
         }
+    }
+
+    /// True if the pid in `watchdog.pid` is still alive (best-effort).
+    private func isWatchdogProcessAlive() -> Bool {
+        guard let text = try? String(contentsOf: watchdogPidFile, encoding: .utf8) else { return false }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let pid = Int32(trimmed), pid > 0 else { return false }
+        return kill(pid, 0) == 0
     }
 
     private func cleanupStateFiles() {
@@ -737,6 +748,21 @@ final class SleepAssertionManager: ObservableObject {
         // While enabled (lid open or closed), keep screensaver/display assertions alive.
         if isEnabled {
             ensureAssertionsHeld()
+            // Watchdog died while On → SleepDisabled can stick after quit. Force Off + restore.
+            if currentDisablesleep() != 0, !isWatchdogProcessAlive() {
+                tripGuard("Turned off — sleep watchdog stopped. Normal lid sleep was restored for safety.")
+                return
+            }
+            // On but SleepDisabled cleared externally → UI was lying; snap to Off.
+            if currentDisablesleep() == 0 {
+                isEnabled = false
+                UserDefaults.standard.set(false, forKey: Self.defaultsKey)
+                releaseAssertion()
+                stopSessionHelpers(retainAnalytics: true)
+                lastError = "Stay Awake stopped — system sleep was re-enabled outside MacStayOn."
+                refreshStatusDetail()
+                return
+            }
         } else if !isActivating {
             // Off must obey the user setting: never leave system sleep disabled.
             if currentDisablesleep() != 0 {
