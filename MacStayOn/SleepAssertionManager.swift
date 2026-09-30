@@ -191,15 +191,21 @@ final class SleepAssertionManager: ObservableObject {
         // Root watchdog survives the auth dialog (setsid + ignore SIGHUP) and
         // restores disablesleep=0 when Off drops a sentinel — no second password.
         // Always restore to 0 (never re-apply a stuck SleepDisabled=1 as "prev").
+        //
+        // Do NOT launch with `nohup` under AppleScript `with administrator privileges`
+        // (Touch ID or password). On modern macOS, nohup fails with
+        // "can't detach from console: No such process" and the child exits
+        // immediately — Turn On then reports watchdog_failed even after approval.
         let watchdogPython = """
         #!/usr/bin/env python3
-        import os, signal, subprocess, sys, time
+        import errno, os, signal, subprocess, sys, time
 
         state = sys.argv[1]
         app_pid = int(sys.argv[2])
         sentinel = os.path.join(state, "restore.sentinel")
         prev = os.path.join(state, "disablesleep.prev")
         pid_file = os.path.join(state, "watchdog.pid")
+        ready_file = os.path.join(state, "watchdog.ready")
         log_path = os.path.join(state, "watchdog.log")
 
         def log(msg):
@@ -208,6 +214,21 @@ final class SleepAssertionManager: ObservableObject {
                     f.write(msg + "\\n")
             except OSError:
                 pass
+
+        def pid_alive(pid):
+            try:
+                os.kill(pid, 0)
+                return True
+            except ProcessLookupError:
+                return False
+            except PermissionError:
+                return True
+            except OSError as e:
+                if e.errno == errno.ESRCH:
+                    return False
+                if e.errno == errno.EPERM:
+                    return True
+                return False
 
         try:
             os.setsid()
@@ -227,21 +248,23 @@ final class SleepAssertionManager: ObservableObject {
             pass
 
         log("watchdog start app=%s euid=%s" % (app_pid, os.geteuid()))
+        try:
+            with open(ready_file, "w") as f:
+                f.write(str(os.getpid()))
+        except OSError:
+            pass
+
         while True:
-            app_alive = True
-            try:
-                os.kill(app_pid, 0)
-            except OSError:
-                app_alive = False
-            if (not app_alive) or os.path.exists(sentinel):
+            alive = pid_alive(app_pid)
+            if (not alive) or os.path.exists(sentinel):
                 log("restore sleep app_alive=%s sentinel=%s euid=%s" % (
-                    app_alive, os.path.exists(sentinel), os.geteuid()))
+                    alive, os.path.exists(sentinel), os.geteuid()))
                 break
             time.sleep(0.5)
 
         rc = subprocess.call(["/usr/bin/pmset", "-a", "disablesleep", "0"])
         log("pmset restore rc=%s" % rc)
-        for p in (sentinel, prev, pid_file):
+        for p in (sentinel, prev, pid_file, ready_file):
             try:
                 os.remove(p)
             except OSError:
@@ -249,10 +272,12 @@ final class SleepAssertionManager: ObservableObject {
         log("watchdog done")
         """
 
+        let readyPath = stateDir.appendingPathComponent("watchdog.ready").path
         let script = """
         #!/bin/bash
         set -euo pipefail
         mkdir -p '\(Self.sq(statePath))'
+        rm -f '\(Self.sq(readyPath))'
         printf '0' > '\(Self.sq(prevPath))'
         chmod 644 '\(Self.sq(prevPath))'
         /usr/bin/pmset -a disablesleep 1
@@ -264,22 +289,27 @@ final class SleepAssertionManager: ObservableObject {
             kill -9 "${OLD}" 2>/dev/null || true
           fi
         fi
-        # nohup + background: keep root after AppleScript's admin shell exits.
-        nohup /usr/bin/python3 '\(Self.sq(watchdogPyPath))' '\(Self.sq(statePath))' '\(pid)' \
-          >/dev/null 2>&1 &
+        # Background + redirects only — never nohup (breaks under AppleScript admin).
+        /usr/bin/python3 '\(Self.sq(watchdogPyPath))' '\(Self.sq(statePath))' '\(pid)' \
+          </dev/null >/dev/null 2>&1 &
         WPID=$!
         echo "${WPID}" > '\(Self.sq(watchdogPidPath))'
         chmod 644 '\(Self.sq(watchdogPidPath))'
         disown "${WPID}" 2>/dev/null || true
-        sleep 0.4
+        for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+          if [ -f '\(Self.sq(readyPath))' ] && kill -0 "${WPID}" 2>/dev/null; then
+            echo "watchdog_ok"
+            exit 0
+          fi
+          sleep 0.1
+        done
         if kill -0 "${WPID}" 2>/dev/null; then
           echo "watchdog_ok"
-        else
-          echo "watchdog_failed" >&2
-          exit 1
+          exit 0
         fi
+        echo "watchdog_failed" >&2
+        exit 1
         """
-
         do {
             try watchdogPython.write(to: watchdogPythonFile, atomically: true, encoding: .utf8)
             try FileManager.default.setAttributes(
@@ -317,7 +347,7 @@ final class SleepAssertionManager: ObservableObject {
             refreshStatusDetail()
         case .failure(let message):
             isEnabled = false
-            lastError = "Admin authorization failed — stayed Off. \(message)"
+            lastError = Self.userFacingEnableFailure(message)
             UserDefaults.standard.set(false, forKey: Self.defaultsKey)
             refreshStatusDetail()
         }
@@ -386,7 +416,8 @@ final class SleepAssertionManager: ObservableObject {
 
     private func cleanupStateFiles() {
         let logFile = stateDir.appendingPathComponent("watchdog.log")
-        for url in [sentinelFile, prevFile, watchdogPidFile, enableScriptFile, watchdogPythonFile, logFile] {
+        let readyFile = stateDir.appendingPathComponent("watchdog.ready")
+        for url in [sentinelFile, prevFile, watchdogPidFile, enableScriptFile, watchdogPythonFile, logFile, readyFile] {
             try? FileManager.default.removeItem(at: url)
         }
     }
@@ -698,6 +729,26 @@ final class SleepAssertionManager: ObservableObject {
         case success(String)
         case cancelled
         case failure(String)
+    }
+
+    /// Map raw admin/watchdog failures to short menu copy (no internal tokens).
+    private static func userFacingEnableFailure(_ message: String) -> String {
+        let lowered = message.lowercased()
+        if lowered.contains("watchdog_failed") {
+            return "Couldn't start the sleep watchdog after admin approval — stayed Off. Try Turn On again."
+        }
+        if lowered.contains("not authorized") || lowered.contains("authorization") {
+            return "Admin authorization failed — stayed Off."
+        }
+        // Prefer a clean prefix; keep a short hint only when it helps.
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return "Admin authorization failed — stayed Off."
+        }
+        if trimmed.count <= 80, !trimmed.contains("\n") {
+            return "Couldn't enable Stay Awake — stayed Off. \(trimmed)"
+        }
+        return "Couldn't enable Stay Awake after admin approval — stayed Off."
     }
 
     private static func runAdminCommand(_ executable: String, arguments: [String]) -> AdminResult {
