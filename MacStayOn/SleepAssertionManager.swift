@@ -455,46 +455,61 @@ final class SleepAssertionManager: ObservableObject {
 
     // MARK: - Assertion
 
+    /// Holds system + display-idle assertions for the whole Stay Awake session
+    /// (lid open or closed). Display idle is what keeps the screensaver off.
     @discardableResult
     private func createAssertion() -> Bool {
-        if hasAssertion { return true }
+        ensureAssertionsHeld()
+        return hasAssertion
+    }
 
-        var systemOK = false
-        var systemID: IOPMAssertionID = 0
-        let systemResult = IOPMAssertionCreateWithName(
-            kIOPMAssertionTypePreventSystemSleep as CFString,
-            IOPMAssertionLevel(kIOPMAssertionLevelOn),
-            Self.systemAssertionName,
-            &systemID
-        )
-        if systemResult == kIOReturnSuccess {
-            systemAssertionID = systemID
-            systemOK = true
+    /// Create any missing assertions. Safe to call periodically while enabled.
+    private func ensureAssertionsHeld() {
+        if systemAssertionID == 0 {
+            var systemID: IOPMAssertionID = 0
+            let systemResult = IOPMAssertionCreateWithName(
+                kIOPMAssertionTypePreventSystemSleep as CFString,
+                IOPMAssertionLevel(kIOPMAssertionLevelOn),
+                Self.systemAssertionName,
+                &systemID
+            )
+            if systemResult == kIOReturnSuccess {
+                systemAssertionID = systemID
+            }
         }
 
-        // Blocks screensaver / display idle sleep while Stay Awake is on (lid open).
-        var displayOK = false
-        var displayID: IOPMAssertionID = 0
-        let displayResult = IOPMAssertionCreateWithName(
-            kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
-            IOPMAssertionLevel(kIOPMAssertionLevelOn),
-            Self.displayAssertionName,
-            &displayID
-        )
-        if displayResult == kIOReturnSuccess {
-            displayAssertionID = displayID
-            displayOK = true
+        // Screensaver / display dim are driven by user-idle display sleep.
+        // This must stay on whenever Stay Awake is enabled — including lid open.
+        if displayAssertionID == 0 {
+            var displayID: IOPMAssertionID = 0
+            let displayResult = IOPMAssertionCreateWithName(
+                kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
+                IOPMAssertionLevel(kIOPMAssertionLevelOn),
+                Self.displayAssertionName,
+                &displayID
+            )
+            if displayResult == kIOReturnSuccess {
+                displayAssertionID = displayID
+            }
         }
 
+        // Also block idle system sleep (some policies check this separately).
+        // Reuse display slot naming via a third assertion id if we add one later;
+        // ProcessInfo covers App Nap / idle display for the process.
         if processActivity == nil {
             processActivity = ProcessInfo.processInfo.beginActivity(
-                options: [.idleDisplaySleepDisabled, .idleSystemSleepDisabled, .userInitiated],
-                reason: "MacStayOn stay awake"
+                options: [
+                    .idleDisplaySleepDisabled,
+                    .idleSystemSleepDisabled,
+                    .suddenTerminationDisabled,
+                    .automaticTerminationDisabled,
+                    .userInitiated,
+                ],
+                reason: "MacStayOn stay awake — no screensaver"
             )
         }
 
-        hasAssertion = systemOK || displayOK
-        return hasAssertion
+        hasAssertion = systemAssertionID != 0 && displayAssertionID != 0
     }
 
     private func releaseAssertion() {
@@ -539,6 +554,11 @@ final class SleepAssertionManager: ObservableObject {
         default: thermalLabel = "cool"
         }
 
+        // While enabled (lid open or closed), keep screensaver/display assertions alive.
+        if isEnabled {
+            ensureAssertionsHeld()
+        }
+
         guard isEnabled, guardEnabled, !guardTripping else { return }
 
         if thermal == .serious || thermal == .critical {
@@ -570,7 +590,7 @@ final class SleepAssertionManager: ObservableObject {
         let disablesleep = currentDisablesleep()
 
         if isEnabled {
-            statusDetail = "SleepDisabled=\(disablesleep) · assertion \(hasAssertion ? "on" : "off") · \(power)"
+            statusDetail = "SleepDisabled=\(disablesleep) · system \(systemAssertionID != 0 ? "on" : "off") · display/screensaver \(displayAssertionID != 0 ? "on" : "off") · \(power)"
         } else if disablesleep != 0 {
             statusDetail = "Sleep still disabled (SleepDisabled=\(disablesleep)) — turn Off again to restore"
         } else {
