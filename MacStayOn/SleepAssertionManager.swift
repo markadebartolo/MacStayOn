@@ -410,14 +410,20 @@ final class SleepAssertionManager: ObservableObject {
             UserDefaults.standard.set("0", forKey: Self.savedPrevKey)
             // Refuse to claim On unless sleep is actually disabled and a watchdog is up.
             // Treat unreadable pmset output as failure (never assume SleepDisabled=0).
-            if readSleepDisabled() != 1 || !isWatchdogProcessAlive() {
+            // Bag-safety: any failed claim must restore SleepDisabled before returning Off.
+            let sleepFlag = readSleepDisabled()
+            let watchdogAlive = isWatchdogProcessAlive()
+            if sleepFlag != 1 || !watchdogAlive {
+                let detail = "sleep=\(sleepFlag.map(String.init) ?? "?") watchdog=\(watchdogAlive ? "up" : "down")"
+                Self.appendEnableDebug("post-admin reject \(detail)")
                 isEnabled = false
                 UserDefaults.standard.set(false, forKey: Self.defaultsKey)
-                lastError = "Stay Awake did not fully enable — kept Off and restored normal lid sleep."
+                lastError = "Stay Awake did not fully enable (\(detail)) — kept Off and restored normal lid sleep."
                 _ = ensureNormalSleepWhileOff(promptAdminIfNeeded: true)
                 refreshStatusDetail()
                 return
             }
+            Self.appendEnableDebug("post-admin accept sleep=1 watchdog=up")
             _ = createAssertion()
             isEnabled = true
             UserDefaults.standard.set(true, forKey: Self.defaultsKey)
@@ -425,12 +431,14 @@ final class SleepAssertionManager: ObservableObject {
             startSessionHelpers()
             refreshStatusDetail()
         case .cancelled:
+            Self.appendEnableDebug("admin cancelled")
             isEnabled = false
             lastError = "Admin authorization canceled — stayed Off."
             UserDefaults.standard.set(false, forKey: Self.defaultsKey)
             _ = ensureNormalSleepWhileOff(promptAdminIfNeeded: true)
             refreshStatusDetail()
         case .failure(let message):
+            Self.appendEnableDebug("admin failure \(message)")
             isEnabled = false
             lastError = Self.userFacingEnableFailure(message)
             UserDefaults.standard.set(false, forKey: Self.defaultsKey)
@@ -574,12 +582,52 @@ final class SleepAssertionManager: ObservableObject {
     }
 
     /// True if the pid in `watchdog.pid` is still alive and looks like our watchdog.
+    ///
+    /// The watchdog runs as root after Touch ID / admin auth. A non-root
+    /// `kill(pid, 0)` often returns `EPERM` for that process — that means the
+    /// process **exists**, not that it is dead. Treating EPERM as dead made
+    /// Turn On fail immediately after a successful fingerprint (UI stayed Off
+    /// while we rolled SleepDisabled back — correct bag-safety, wrong enable).
     private func isWatchdogProcessAlive() -> Bool {
         guard let text = try? String(contentsOf: watchdogPidFile, encoding: .utf8) else { return false }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let pid = Int32(trimmed), pid > 0 else { return false }
-        if kill(pid, 0) != 0 { return false }
-        // PID reuse can leave a live unrelated process; require our script in the argv.
+
+        // Clear errno so a prior failure cannot spoof EPERM.
+        errno = 0
+        let rc = kill(pid, 0)
+        let killErrno = errno
+        if rc != 0 {
+            if killErrno == ESRCH {
+                return false
+            }
+            if killErrno != EPERM {
+                // Unexpected errno — fall through to ps / ready-file confirmation.
+                Self.appendEnableDebug("kill(0) pid=\(pid) rc=\(rc) errno=\(killErrno)")
+            }
+            // EPERM: process exists but we cannot signal it (root watchdog).
+        }
+
+        if let args = Self.processArguments(pid: pid) {
+            if args.isEmpty {
+                // ps ran but hid args; existence already indicated by kill/EPERM.
+                return readyFileMatches(pid: pid) || rc == 0 || killErrno == EPERM
+            }
+            return args.contains("watchdog.py") || args.contains("MacStayOn")
+        }
+
+        // ps unavailable — accept only with matching ready stamp (written by root watchdog).
+        return readyFileMatches(pid: pid)
+    }
+
+    private func readyFileMatches(pid: Int32) -> Bool {
+        let readyFile = stateDir.appendingPathComponent("watchdog.ready")
+        guard let text = try? String(contentsOf: readyFile, encoding: .utf8) else { return false }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed == String(pid)
+    }
+
+    private static func processArguments(pid: Int32) -> String? {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/bin/ps")
         proc.arguments = ["-p", String(pid), "-o", "args="]
@@ -590,14 +638,27 @@ final class SleepAssertionManager: ObservableObject {
             try proc.run()
             proc.waitUntilExit()
         } catch {
-            // Existence check already passed; be conservative while On.
-            return true
+            return nil
         }
+        guard proc.terminationStatus == 0 else { return nil }
         let data = out.fileHandleForReading.readDataToEndOfFile()
-        let args = String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if args.isEmpty { return true }
-        return args.contains("watchdog.py") || args.contains("MacStayOn")
+        return String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func appendEnableDebug(_ message: String) {
+        let path = "/tmp/MacStayOn-\(NSUserName())/enable.log"
+        let line = "\(ISO8601DateFormatter().string(from: Date())) \(message)\n"
+        guard let data = line.data(using: .utf8) else { return }
+        let url = URL(fileURLWithPath: path)
+        if FileManager.default.fileExists(atPath: path),
+           let handle = try? FileHandle(forWritingTo: url) {
+            defer { try? handle.close() }
+            handle.seekToEndOfFile()
+            handle.write(data)
+        } else {
+            try? data.write(to: url)
+        }
     }
 
     private func cleanupStateFiles() {
