@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let sleepManager = SleepAssertionManager()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        HardwareProfile.warmCache()
         sleepManager.applyPersistedStateIfNeeded()
     }
 

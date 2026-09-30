@@ -144,12 +144,10 @@ final class SleepAssertionManager: ObservableObject {
         }
 
         let alert = NSAlert()
-        alert.messageText = "Keep Mac awake with lid closed?"
-        alert.informativeText = """
-        MacStayOn will prevent sleep when you close the lid so agents and other work can keep running.
-
-        A closed Mac can overheat in a confined space. Do not put it in a bag, under a blanket, or in another enclosed space while this is on.
-        """
+        alert.messageText = HardwareProfile.isMacBookAir
+            ? "Keep MacBook Air awake with lid closed?"
+            : "Keep Mac awake with lid closed?"
+        alert.informativeText = HardwareProfile.enableHeatWarningBody
         alert.alertStyle = .warning
         alert.icon = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: nil)
         alert.addButton(withTitle: "Turn On")
