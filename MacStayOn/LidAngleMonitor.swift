@@ -137,7 +137,8 @@ final class LidAngleMonitor: @unchecked Sendable {
         lastAngle = degrees
         log("angle=\(degrees)")
 
-        DispatchQueue.main.async { [weak self] in
+        // Prefer the main run loop immediately so the warn flash paints on the next frame.
+        DispatchQueue.main.async(qos: .userInteractive) { [weak self] in
             self?.onAngleChange?(degrees)
         }
     }

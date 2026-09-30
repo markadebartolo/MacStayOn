@@ -10,50 +10,62 @@ enum ScreenFlashAlert {
     private static let logURL = URL(fileURLWithPath: "/tmp/macstayon-lid.log")
 
     static func flashStayAwakeWarning() {
-        DispatchQueue.main.async {
-            // Already looping — leave it alone.
-            if isFlashing, !cancelled { return }
-
-            cancelLocked()
-            isFlashing = true
-            cancelled = false
-            pulseToken += 1
-            let token = pulseToken
-            showPhase = true
-            appendLog("flash loop begin")
-            NSSound.beep()
-            NSApp.activate(ignoringOtherApps: true)
-
-            var created: [NSWindow] = []
-            for screen in NSScreen.screens {
-                let win = NSWindow(
-                    contentRect: screen.frame,
-                    styleMask: .borderless,
-                    backing: .buffered,
-                    defer: false,
-                    screen: screen
-                )
-                win.isReleasedWhenClosed = false
-                win.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)) + 1)
-                win.isOpaque = false
-                win.hasShadow = false
-                win.backgroundColor = NSColor(red: 0.96, green: 0.55, blue: 0.18, alpha: 0.65)
-                win.ignoresMouseEvents = true
-                win.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
-                win.alphaValue = 1
-                win.orderFrontRegardless()
-                created.append(win)
-            }
-            windows = created
-            tick(token: token)
+        // Avoid a second main-queue hop when the lid callback is already on main —
+        // that delay was the bulk of “flash feels late after the warn angle.”
+        if Thread.isMainThread {
+            beginFlash()
+        } else {
+            DispatchQueue.main.async(execute: beginFlash)
         }
     }
 
     /// Stop pulsing (lid fully shut / Stay Awake off).
     static func cancel() {
-        DispatchQueue.main.async {
+        if Thread.isMainThread {
             cancelLocked()
+        } else {
+            DispatchQueue.main.async(execute: cancelLocked)
         }
+    }
+
+    private static func beginFlash() {
+        // Already looping — leave it alone.
+        if isFlashing, !cancelled { return }
+
+        cancelLocked()
+        isFlashing = true
+        cancelled = false
+        pulseToken += 1
+        let token = pulseToken
+        showPhase = true
+        appendLog("flash loop begin")
+
+        // Paint overlays first so the warn is visible immediately; beep/activate after.
+        var created: [NSWindow] = []
+        for screen in NSScreen.screens {
+            let win = NSWindow(
+                contentRect: screen.frame,
+                styleMask: .borderless,
+                backing: .buffered,
+                defer: false,
+                screen: screen
+            )
+            win.isReleasedWhenClosed = false
+            win.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)) + 1)
+            win.isOpaque = false
+            win.hasShadow = false
+            win.backgroundColor = NSColor(red: 0.96, green: 0.55, blue: 0.18, alpha: 0.65)
+            win.ignoresMouseEvents = true
+            win.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+            win.alphaValue = 1
+            win.orderFrontRegardless()
+            created.append(win)
+        }
+        windows = created
+
+        NSSound.beep()
+        NSApp.activate(ignoringOtherApps: true)
+        tick(token: token)
     }
 
     private static func cancelLocked() {

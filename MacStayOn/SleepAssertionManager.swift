@@ -753,7 +753,19 @@ final class SleepAssertionManager: ObservableObject {
 
     private static func runAdminCommand(_ executable: String, arguments: [String]) -> AdminResult {
         let joined = ([executable] + arguments).map(shellQuote).joined(separator: " ")
-        let appleSource = "do shell script \(appleStringLiteral(joined)) with administrator privileges"
+        // Prompt text is shown on the Security Agent dialog. Touch ID itself requires a
+        // Team-ID-signed app (see scripts/build.sh) — ad-hoc builds are often password-only.
+        let prompt = "MacStayOn needs admin to change lid-sleep settings. Use Touch ID if offered, or enter your password."
+        let appleSource = "do shell script \(appleStringLiteral(joined)) with administrator privileges with prompt \(appleStringLiteral(prompt))"
+
+        // Frontmost + Team-ID-signed builds get Touch ID on this dialog; ad-hoc often password-only.
+        if Thread.isMainThread {
+            NSApp.activate(ignoringOtherApps: true)
+        } else {
+            DispatchQueue.main.sync {
+                NSApp.activate(ignoringOtherApps: true)
+            }
+        }
 
         var error: NSDictionary?
         guard let script = NSAppleScript(source: appleSource) else {
