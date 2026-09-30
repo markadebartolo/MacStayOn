@@ -8,13 +8,22 @@
 
 /* Begin PBXBuildFile section */
 		3CF36D329C07A54648C4299E /* SleepAssertionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C829051A9A4218DD77F2C32C /* SleepAssertionManager.swift */; };
+		541567C97E61A0C6862FF6D1 /* LidMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE3FEBA7898EB6C7BE896A9 /* LidMonitor.swift */; };
 		7C340361E5950D9982E45146 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DD81DF72ADB6F9916C297486 /* Assets.xcassets */; };
 		7DF07DAB6995A0E7A56D2F13 /* MacStayOnApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1286037094980442A8B90FA /* MacStayOnApp.swift */; };
+		8CEFDAA5508E9FEF5B82C339 /* LidAngleMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1861888FA20FA7D488B3147 /* LidAngleMonitor.swift */; };
+		F063D11696643220875CA735 /* ScreenFlashAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D114C7D8FD0580CC98FE07A /* ScreenFlashAlert.swift */; };
+		FE32EDAF8A7800965EBF4CCC /* SessionAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29FE82A6B2D548C210FA377A /* SessionAnalytics.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0DE3FEBA7898EB6C7BE896A9 /* LidMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LidMonitor.swift; sourceTree = "<group>"; };
 		25AB80C519C1F0D8850950B5 /* MacStayOn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacStayOn.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		29FE82A6B2D548C210FA377A /* SessionAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionAnalytics.swift; sourceTree = "<group>"; };
+		2D114C7D8FD0580CC98FE07A /* ScreenFlashAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenFlashAlert.swift; sourceTree = "<group>"; };
 		5D5B0E6326B2762E8D6D6FBC /* MacStayOn.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MacStayOn.entitlements; sourceTree = "<group>"; };
+		63BFA15901EA4552DFB5ED84 /* MacStayOn-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MacStayOn-Bridging-Header.h"; sourceTree = "<group>"; };
+		B1861888FA20FA7D488B3147 /* LidAngleMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LidAngleMonitor.swift; sourceTree = "<group>"; };
 		C1286037094980442A8B90FA /* MacStayOnApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacStayOnApp.swift; sourceTree = "<group>"; };
 		C829051A9A4218DD77F2C32C /* SleepAssertionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepAssertionManager.swift; sourceTree = "<group>"; };
 		DD81DF72ADB6F9916C297486 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -27,8 +36,13 @@
 			children = (
 				DD81DF72ADB6F9916C297486 /* Assets.xcassets */,
 				EF158FFE4308ECB5751ADE98 /* Info.plist */,
+				B1861888FA20FA7D488B3147 /* LidAngleMonitor.swift */,
+				0DE3FEBA7898EB6C7BE896A9 /* LidMonitor.swift */,
+				63BFA15901EA4552DFB5ED84 /* MacStayOn-Bridging-Header.h */,
 				5D5B0E6326B2762E8D6D6FBC /* MacStayOn.entitlements */,
 				C1286037094980442A8B90FA /* MacStayOnApp.swift */,
+				2D114C7D8FD0580CC98FE07A /* ScreenFlashAlert.swift */,
+				29FE82A6B2D548C210FA377A /* SessionAnalytics.swift */,
 				C829051A9A4218DD77F2C32C /* SleepAssertionManager.swift */,
 			);
 			path = MacStayOn;
@@ -78,8 +92,12 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1430;
+				LastUpgradeCheck = 1500;
 				TargetAttributes = {
+					41AB4B2CF64312C81B3754C3 = {
+						DevelopmentTeam = QA3AY5HLGM;
+						ProvisioningStyle = Automatic;
+					};
 				};
 			};
 			buildConfigurationList = E12179FB2FBE9EE71C4C5E0C /* Build configuration list for PBXProject "MacStayOn" */;
@@ -117,7 +135,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8CEFDAA5508E9FEF5B82C339 /* LidAngleMonitor.swift in Sources */,
+				541567C97E61A0C6862FF6D1 /* LidMonitor.swift in Sources */,
 				7DF07DAB6995A0E7A56D2F13 /* MacStayOnApp.swift in Sources */,
+				F063D11696643220875CA735 /* ScreenFlashAlert.swift in Sources */,
+				FE32EDAF8A7800965EBF4CCC /* SessionAnalytics.swift in Sources */,
 				3CF36D329C07A54648C4299E /* SleepAssertionManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -144,6 +166,7 @@
 				PRODUCT_NAME = MacStayOn;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "MacStayOn/MacStayOn-Bridging-Header.h";
 			};
 			name = Release;
 		};
@@ -182,9 +205,10 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGNING_ALLOWED = YES;
 				CODE_SIGNING_REQUIRED = NO;
-				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = QA3AY5HLGM;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -232,6 +256,7 @@
 				PRODUCT_NAME = MacStayOn;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "MacStayOn/MacStayOn-Bridging-Header.h";
 			};
 			name = Debug;
 		};
@@ -270,9 +295,10 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGNING_ALLOWED = YES;
 				CODE_SIGNING_REQUIRED = NO;
-				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = QA3AY5HLGM;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;

@@ -4,11 +4,14 @@ options:
   deploymentTarget:
     macOS: "13.0"
   createIntermediateGroups: true
+  # Keep Xcodeproj format compatible with GitHub Actions Xcode 15 runners
+  xcodeVersion: "15.0"
 settings:
   base:
     SWIFT_VERSION: "5.0"
     MACOSX_DEPLOYMENT_TARGET: "13.0"
-    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: QA3AY5HLGM
     CODE_SIGNING_ALLOWED: "YES"
     CODE_SIGNING_REQUIRED: "NO"
 targets:
@@ -28,9 +31,10 @@ targets:
           - "@executable_path/../Frameworks"
         COMBINE_HIDPI_IMAGES: true
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        MARKETING_VERSION: "1.0.0"
-        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "1.1.0"
+        CURRENT_PROJECT_VERSION: "2"
         ENABLE_HARDENED_RUNTIME: true
         SWIFT_EMIT_LOC_STRINGS: false
+        SWIFT_OBJC_BRIDGING_HEADER: MacStayOn/MacStayOn-Bridging-Header.h
     entitlements:
       path: MacStayOn/MacStayOn.entitlements

@@ -13,6 +13,14 @@ MacStayOn.app/
 LidAwake.app/
 dist/
 
+# .NET / Windows
+**/bin/
+**/obj/
+*.user
+*.suo
+windows/**/publish/
+dist/release/
+
 # Unrelated local Chrome profile in this checkout
 chrome-profile/
 

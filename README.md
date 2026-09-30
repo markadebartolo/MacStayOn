@@ -55,7 +55,8 @@ The popover matches what you see in the app — status first, then one primary a
 | **Status** | *Lid closed: normal sleep* or *Lid closed: stays awake* · AC or battery % |
 | **Primary button** | **Keep awake with lid closed** (orange) or **Restore normal sleep** when on |
 | **Heat & battery guard** | Toggle + *Restore normal sleep at* **10–50%** battery. Also turns off if macOS reports **serious heat**. Only while MacStayOn is on. |
-| **This session** | After you turn on: time awake + apps that were **actually working** (including background agents). Timeline shows *working* / *stalled* / *stopped*. **Clear last session** when you are done. |
+| **Lid-close flash** | While On, closing the lid past ~85° pulses the screen orange until the lid is fully shut (or reopened past that angle). |
+| **This session** | Time awake (always visible). Expand to see apps that were working, timeline, and **Clear last session**. Collapsed by default. |
 | **Quit** | Restores sleep settings and exits |
 
 Session data stays **on your Mac** — nothing is sent to a server.
@@ -66,8 +67,8 @@ Session data stays **on your Mac** — nothing is sent to a server.
 
 | When you turn **On** | When you turn **Off** or **Quit** |
 |----------------------|-----------------------------------|
-| `pmset disablesleep` (admin) + IOKit stay-awake assertion | Previous sleep settings restored via a small watchdog |
-| Works on **battery** without a monitor | Sleep is not left disabled after a clean quit |
+| `pmset disablesleep` (**admin password once**) + IOKit stay-awake + **no screensaver** | A root watchdog restores normal lid sleep — **no password** in the usual case |
+| Works on **battery** without a monitor | If the watchdog was killed, Off may ask for admin once to clear a stuck setting |
 
 `PreventSystemSleep` alone is not enough on battery; MacStayOn uses the same approach power users rely on for closed-lid work.
 
