@@ -22,7 +22,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let sleepManager = SleepAssertionManager()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        HardwareProfile.warmCache()
+        HardwareProfile.warmCache { [sleepManager] in
+            sleepManager.refreshMachineLabel()
+        }
         sleepManager.applyPersistedStateIfNeeded()
     }
 
@@ -138,13 +140,17 @@ private struct PopoverRoot: View {
     }
 
     private var powerLine: String {
+        let power: String
         if sleepManager.onACPower {
-            return "On AC power"
+            power = "On AC power"
+        } else if let percent = sleepManager.batteryPercent {
+            power = "On battery · \(percent)%"
+        } else {
+            power = "On battery"
         }
-        if let percent = sleepManager.batteryPercent {
-            return "On battery · \(percent)%"
-        }
-        return "On battery"
+        let machine = sleepManager.machineLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        if machine.isEmpty { return power }
+        return "\(machine) · \(power)"
     }
 
     private var actionButton: some View {

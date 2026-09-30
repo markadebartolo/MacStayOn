@@ -1,20 +1,50 @@
 import Darwin
 import Foundation
 
-/// Local Mac identity for warnings (model id + marketing name).
+/// Local Mac identity for warnings and the menu status line.
 enum HardwareProfile {
     struct Info: Equatable {
         var modelIdentifier: String
         var marketingName: String
+        var chipName: String
+
+        /// Compact label for the menu, e.g. "MacBook Pro · M5 Max".
+        var menuLabel: String {
+            let name = marketingName.isEmpty ? (modelIdentifier.isEmpty ? "Mac" : modelIdentifier) : marketingName
+            let chip = HardwareProfile.shortChip(chipName)
+            if chip.isEmpty { return name }
+            return "\(name) · \(chip)"
+        }
     }
 
     private static var cached: Info?
     private static let lock = NSLock()
+    private static var warmCompletions: [() -> Void] = []
 
     /// Prefetch model info off the critical path (system_profiler can take a moment).
-    static func warmCache() {
+    static func warmCache(completion: (() -> Void)? = nil) {
+        if let completion {
+            lock.lock()
+            if cached != nil {
+                lock.unlock()
+                DispatchQueue.main.async(execute: completion)
+                return
+            }
+            warmCompletions.append(completion)
+            lock.unlock()
+        }
         DispatchQueue.global(qos: .utility).async {
             _ = current
+            let callbacks: [() -> Void]
+            lock.lock()
+            callbacks = warmCompletions
+            warmCompletions.removeAll()
+            lock.unlock()
+            if !callbacks.isEmpty {
+                DispatchQueue.main.async {
+                    callbacks.forEach { $0() }
+                }
+            }
         }
     }
 
@@ -22,9 +52,11 @@ enum HardwareProfile {
         lock.lock()
         defer { lock.unlock() }
         if let cached { return cached }
+        let profile = readProfile()
         let info = Info(
-            modelIdentifier: readModelIdentifier(),
-            marketingName: readMarketingName() ?? ""
+            modelIdentifier: profile.modelIdentifier.isEmpty ? readModelIdentifier() : profile.modelIdentifier,
+            marketingName: profile.marketingName,
+            chipName: profile.chipName
         )
         cached = info
         return info
@@ -65,6 +97,21 @@ enum HardwareProfile {
 
     // MARK: - Readers
 
+    private static func shortChip(_ chip: String) -> String {
+        var s = chip.trimmingCharacters(in: .whitespacesAndNewlines)
+        if s.isEmpty { return "" }
+        // "Apple M5 Max" → "M5 Max"
+        if s.lowercased().hasPrefix("apple ") {
+            s = String(s.dropFirst(6))
+        }
+        return s
+    }
+
+    /// Fast path for menu before `system_profiler` finishes (model id only).
+    static func readModelIdentifierForDisplay() -> String {
+        readModelIdentifier()
+    }
+
     private static func readModelIdentifier() -> String {
         var size = 0
         sysctlbyname("hw.model", nil, &size, nil, 0)
@@ -75,8 +122,15 @@ enum HardwareProfile {
         return String(cString: buffer)
     }
 
-    /// Marketing name from `system_profiler` JSON (`machine_name`), e.g. "MacBook Air".
-    private static func readMarketingName() -> String? {
+    private struct RawProfile {
+        var modelIdentifier: String = ""
+        var marketingName: String = ""
+        var chipName: String = ""
+    }
+
+    /// Marketing name / chip from `system_profiler` JSON.
+    private static func readProfile() -> RawProfile {
+        var raw = RawProfile()
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
         proc.arguments = ["SPHardwareDataType", "-json"]
@@ -87,7 +141,7 @@ enum HardwareProfile {
             try proc.run()
             proc.waitUntilExit()
         } catch {
-            return nil
+            return raw
         }
         let data = out.fileHandleForReading.readDataToEndOfFile()
         guard
@@ -95,13 +149,17 @@ enum HardwareProfile {
             let rows = json["SPHardwareDataType"] as? [[String: Any]],
             let first = rows.first
         else {
-            return nil
+            return raw
         }
-        // Key is machine_name in JSON output.
-        if let name = first["machine_name"] as? String, !name.isEmpty {
-            return name
+        if let name = first["machine_name"] as? String {
+            raw.marketingName = name
         }
-        return nil
+        if let model = first["machine_model"] as? String {
+            raw.modelIdentifier = model
+        }
+        if let chip = first["chip_type"] as? String {
+            raw.chipName = chip
+        }
+        return raw
     }
-
 }

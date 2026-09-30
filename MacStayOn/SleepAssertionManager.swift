@@ -28,6 +28,8 @@ final class SleepAssertionManager: ObservableObject {
     @Published private(set) var batteryPercent: Int?
     @Published private(set) var onACPower: Bool = false
     @Published private(set) var thermalLabel: String = "cool"
+    /// e.g. "MacBook Pro · M5 Max" — shown next to AC/battery in the menu.
+    @Published private(set) var machineLabel: String = ""
 
     private var guardTimer: Timer?
     private var guardTripping = false
@@ -76,7 +78,16 @@ final class SleepAssertionManager: ObservableObject {
         }
         let storedFloor = defaults.object(forKey: Self.batteryFloorKey) as? Int
         batteryFloor = Self.clampFloor(storedFloor ?? 20)
+        // Instant fallback from sysctl; marketing name/chip fill in after warmCache.
+        machineLabel = HardwareProfile.readModelIdentifierForDisplay()
         startGuardMonitor()
+    }
+
+    func refreshMachineLabel() {
+        let label = HardwareProfile.current.menuLabel
+        if !label.isEmpty {
+            machineLabel = label
+        }
     }
 
     deinit {
