@@ -38,7 +38,7 @@ Close the lid and keep working — **Cursor, Claude, builds, and other agents** 
 1. Download **[MacStayOn-macos-arm64.zip](https://github.com/markadebartolo/MacStayOn/releases/latest)** from Releases.
 2. Unzip and open **MacStayOn.app** (notarized builds open normally; no right-click workaround needed).
 3. Click the **moon** icon in the menu bar.
-4. Tap **Keep awake with lid closed** → confirm the heat warning → enter your **admin password** once (required to block lid sleep on battery).
+4. Tap **Keep awake with lid closed** → confirm the heat warning → approve **admin once** with **Touch ID** when offered (or password) so MacStayOn can block lid sleep on battery.
 5. Close the lid when you are ready. Open it again and MacStayOn asks whether to **restore normal sleep** or stay on.
 
 **Requirements:** macOS 13 Ventura or later · Apple Silicon or Intel Mac
@@ -67,7 +67,7 @@ Session data stays **on your Mac** — nothing is sent to a server.
 
 | When you turn **On** | When you turn **Off** or **Quit** |
 |----------------------|-----------------------------------|
-| `pmset disablesleep` (**admin password once**) + IOKit stay-awake + **no screensaver** | A root watchdog restores normal lid sleep — **no password** in the usual case |
+| `pmset disablesleep` (**admin once** — Touch ID when offered) + IOKit stay-awake + **no screensaver** | A root watchdog restores normal lid sleep — **no password** in the usual case |
 | Works on **battery** without a monitor | If the watchdog was killed, Off may ask for admin once to clear a stuck setting |
 
 `PreventSystemSleep` alone is not enough on battery; MacStayOn uses the same approach power users rely on for closed-lid work.

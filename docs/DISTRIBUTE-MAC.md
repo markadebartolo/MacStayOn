@@ -48,7 +48,7 @@ security find-identity -v -p codesigning | grep "Developer ID Application"
 Copy the full quoted string, e.g.  
 `Developer ID Application: Mark DeBartolo (QA3AY5HLGM)`
 
-The Xcode project is already set to automatic signing for team **QA3AY5HLGM** (Mark DeBartolo). A local `./scripts/build.sh` still builds unsigned. Notarization uses the Developer ID identity above, which is separate from the Apple Development certificate already on this Mac.
+The Xcode project is already set to automatic signing for team **QA3AY5HLGM** (Mark DeBartolo). A local `./scripts/build.sh` signs with Developer ID when that identity is in the keychain (needed for Touch ID on the admin prompt). Notarization still uses `./scripts/notarize.sh` with the profile above.
 
 ## Build, sign, notarize
 
