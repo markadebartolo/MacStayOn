@@ -81,7 +81,7 @@ Session data stays **on your Mac** — nothing is sent to a server.
 | When you turn **On** | When you turn **Off** or **Quit** |
 |----------------------|-----------------------------------|
 | `pmset disablesleep` (**admin once** — Touch ID when offered) + IOKit stay-awake + **no screensaver** | A root watchdog restores normal lid sleep — **no password** in the usual case |
-| Works on **battery** without a monitor | If the watchdog was killed, Off may ask for admin once to clear a stuck setting |
+| Works on **battery** without a monitor | If the watchdog was killed, Off asks for admin to clear stuck sleep — **Off never leaves SleepDisabled on** (bag-safety) |
 
 `PreventSystemSleep` alone is not enough on battery; MacStayOn uses the same approach power users rely on for closed-lid work.
 

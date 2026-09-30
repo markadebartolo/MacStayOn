@@ -31,8 +31,8 @@ targets:
           - "@executable_path/../Frameworks"
         COMBINE_HIDPI_IMAGES: true
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        MARKETING_VERSION: "1.1.3"
-        CURRENT_PROJECT_VERSION: "8"
+        MARKETING_VERSION: "1.1.4"
+        CURRENT_PROJECT_VERSION: "9"
         ENABLE_HARDENED_RUNTIME: true
         SWIFT_EMIT_LOC_STRINGS: false
         SWIFT_OBJC_BRIDGING_HEADER: MacStayOn/MacStayOn-Bridging-Header.h

@@ -33,6 +33,10 @@ final class SleepAssertionManager: ObservableObject {
 
     private var guardTimer: Timer?
     private var guardTripping = false
+    /// Prevents re-entrant admin prompts while forcing SleepDisabled back to 0.
+    private var isReconcilingSleep = false
+    /// Avoid admin-dialog spam if the user cancels restore; still show CRITICAL in the menu.
+    private var lastSleepReconcileAdminAt: Date?
 
     let analytics = SessionAnalytics()
 
@@ -103,11 +107,9 @@ final class SleepAssertionManager: ObservableObject {
         if UserDefaults.standard.bool(forKey: Self.defaultsKey) {
             setEnabled(true)
         } else {
-            // Prior sessions could leave SleepDisabled=1 if the privileged
-            // watchdog died before restore. Clear it so "Off" means normal lid sleep.
-            if currentDisablesleep() != 0 {
-                restoreDisablesleepWithAdmin(preferringSavedPrev: true)
-            }
+            // Off must mean normal lid sleep — clear any stuck SleepDisabled from a
+            // prior crash / failed Turn On (e.g. pmset ran but watchdog died).
+            _ = ensureNormalSleepWhileOff(promptAdminIfNeeded: true)
             cleanupStateFiles()
             refreshStatusDetail()
         }
@@ -118,6 +120,9 @@ final class SleepAssertionManager: ObservableObject {
     func prepareForTermination() {
         if isEnabled || hasAssertion || FileManager.default.fileExists(atPath: prevFile.path) {
             deactivate(persistOff: true)
+        } else {
+            // Even when already Off, never quit while SleepDisabled is stuck on.
+            _ = ensureNormalSleepWhileOff(promptAdminIfNeeded: true)
         }
     }
 
@@ -327,6 +332,9 @@ final class SleepAssertionManager: ObservableObject {
           echo "watchdog_ok"
           exit 0
         fi
+        # FATAL: never leave SleepDisabled=1 if the watchdog did not stay up —
+        # UI would show Off while the Mac stays awake in a bag.
+        /usr/bin/pmset -a disablesleep 0 || true
         echo "watchdog_failed" >&2
         exit 1
         """
@@ -345,6 +353,7 @@ final class SleepAssertionManager: ObservableObject {
             isEnabled = false
             lastError = "Could not prepare enable script — stayed Off."
             UserDefaults.standard.set(false, forKey: Self.defaultsKey)
+            _ = ensureNormalSleepWhileOff(promptAdminIfNeeded: true)
             refreshStatusDetail()
             return
         }
@@ -355,6 +364,15 @@ final class SleepAssertionManager: ObservableObject {
             if !trimmed.isEmpty {
                 UserDefaults.standard.set(trimmed, forKey: Self.savedPrevKey)
             }
+            // Refuse to claim On unless sleep is actually disabled and a watchdog is up.
+            if currentDisablesleep() == 0 || !FileManager.default.fileExists(atPath: readyPath) {
+                isEnabled = false
+                UserDefaults.standard.set(false, forKey: Self.defaultsKey)
+                lastError = "Stay Awake did not fully enable — kept Off and restored normal lid sleep."
+                _ = ensureNormalSleepWhileOff(promptAdminIfNeeded: true)
+                refreshStatusDetail()
+                return
+            }
             _ = createAssertion()
             isEnabled = true
             UserDefaults.standard.set(true, forKey: Self.defaultsKey)
@@ -364,11 +382,14 @@ final class SleepAssertionManager: ObservableObject {
             isEnabled = false
             lastError = "Admin authorization canceled — stayed Off."
             UserDefaults.standard.set(false, forKey: Self.defaultsKey)
+            _ = ensureNormalSleepWhileOff(promptAdminIfNeeded: true)
             refreshStatusDetail()
         case .failure(let message):
             isEnabled = false
             lastError = Self.userFacingEnableFailure(message)
             UserDefaults.standard.set(false, forKey: Self.defaultsKey)
+            // Enable script should have undone pmset; still verify — bag-safety invariant.
+            _ = ensureNormalSleepWhileOff(promptAdminIfNeeded: true)
             refreshStatusDetail()
         }
     }
@@ -384,27 +405,66 @@ final class SleepAssertionManager: ObservableObject {
             UserDefaults.standard.set(false, forKey: Self.defaultsKey)
         }
 
-        // Prefer the root watchdog started at Turn On (no password). Only fall
-        // back to an admin prompt if sleep is still disabled after a short wait.
-        requestWatchdogRestore()
+        UserDefaults.standard.removeObject(forKey: Self.savedPrevKey)
+        // Invariant: Off ⇒ SleepDisabled must be 0 (never leave a bag-awake Mac).
+        if ensureNormalSleepWhileOff(promptAdminIfNeeded: true) {
+            lastError = nil
+        }
+        refreshStatusDetail()
+    }
 
+    /// When MacStayOn is Off, `pmset disablesleep` / SleepDisabled must be 0.
+    /// Tries the root watchdog first, then an admin `pmset` if still stuck.
+    @discardableResult
+    private func ensureNormalSleepWhileOff(promptAdminIfNeeded: Bool) -> Bool {
+        guard !isEnabled else { return false }
+        if currentDisablesleep() == 0 {
+            cleanupStateFiles()
+            return true
+        }
+        if isReconcilingSleep { return false }
+        isReconcilingSleep = true
+        defer { isReconcilingSleep = false }
+
+        requestWatchdogRestore()
         let deadline = Date().addingTimeInterval(4.0)
         while Date() < deadline {
             if currentDisablesleep() == 0 { break }
             Thread.sleep(forTimeInterval: 0.2)
         }
 
-        if currentDisablesleep() != 0 {
-            // Last resort — watchdog missing or lost privileges.
-            _ = restoreDisablesleepWithAdmin(preferringSavedPrev: true)
-        }
-
-        UserDefaults.standard.removeObject(forKey: Self.savedPrevKey)
         if currentDisablesleep() == 0 {
             cleanupStateFiles()
-            lastError = nil
+            return true
         }
+
+        let critical = "CRITICAL: Lid sleep is still disabled while MacStayOn is Off. Approve admin to restore sleep — otherwise the Mac can stay awake in a bag."
+
+        guard promptAdminIfNeeded else {
+            lastError = critical
+            refreshStatusDetail()
+            return false
+        }
+
+        // If the user just canceled, keep the CRITICAL banner but don't re-prompt every 5s.
+        if let last = lastSleepReconcileAdminAt, Date().timeIntervalSince(last) < 60 {
+            lastError = critical
+            refreshStatusDetail()
+            return false
+        }
+        lastSleepReconcileAdminAt = Date()
+
+        let restored = restoreDisablesleepWithAdmin(preferringSavedPrev: true)
+        if restored || currentDisablesleep() == 0 {
+            cleanupStateFiles()
+            lastError = nil
+            lastSleepReconcileAdminAt = nil
+            return true
+        }
+
+        lastError = critical
         refreshStatusDetail()
+        return false
     }
 
     /// Restores `pmset disablesleep` / system-wide SleepDisabled via admin auth.
@@ -650,7 +710,8 @@ final class SleepAssertionManager: ObservableObject {
 
     private func startGuardMonitor() {
         guardTimer?.invalidate()
-        let timer = Timer(timeInterval: 15, repeats: true) { [weak self] _ in
+        // Check often enough that a stuck SleepDisabled while Off cannot linger in a bag.
+        let timer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
             self?.evaluateGuard()
         }
         RunLoop.main.add(timer, forMode: .common)
@@ -660,6 +721,7 @@ final class SleepAssertionManager: ObservableObject {
 
     /// While Stay Awake is on, turn it off if the battery is at or below the floor
     /// (on battery only) or the Mac reports serious/critical thermal pressure.
+    /// While Off, force SleepDisabled back to 0 if it ever sticks.
     private func evaluateGuard() {
         let snapshot = Self.powerSnapshot()
         onACPower = snapshot.onAC
@@ -675,6 +737,13 @@ final class SleepAssertionManager: ObservableObject {
         // While enabled (lid open or closed), keep screensaver/display assertions alive.
         if isEnabled {
             ensureAssertionsHeld()
+        } else if !isActivating {
+            // Off must obey the user setting: never leave system sleep disabled.
+            if currentDisablesleep() != 0 {
+                _ = ensureNormalSleepWhileOff(promptAdminIfNeeded: true)
+            }
+            refreshStatusDetail()
+            return
         }
 
         guard isEnabled, guardEnabled, !guardTripping else { return }
@@ -710,7 +779,7 @@ final class SleepAssertionManager: ObservableObject {
         if isEnabled {
             statusDetail = "SleepDisabled=\(disablesleep) · system \(systemAssertionID != 0 ? "on" : "off") · display/screensaver \(displayAssertionID != 0 ? "on" : "off") · \(power)"
         } else if disablesleep != 0 {
-            statusDetail = "Sleep still disabled (SleepDisabled=\(disablesleep)) — turn Off again to restore"
+            statusDetail = "CRITICAL: Off but lid sleep still disabled — approve admin to restore (bag risk)"
         } else {
             statusDetail = "Normal lid sleep · \(power)"
         }
