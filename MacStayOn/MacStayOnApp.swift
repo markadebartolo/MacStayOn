@@ -21,6 +21,13 @@ struct MacStayOnApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let sleepManager = SleepAssertionManager()
 
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // Two copies (dist + Debug) share /tmp state and can fight the watchdog.
+        if !SingleInstance.claimOrActivateExisting() {
+            NSApp.terminate(nil)
+        }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         HardwareProfile.warmCache { [sleepManager] in
             sleepManager.refreshMachineLabel()
@@ -67,6 +74,28 @@ private struct PopoverRoot: View {
             header
             Divider().overlay(Palette.line)
             statusBlock
+            if sleepManager.isSleepStuckWhileOff {
+                Button {
+                    sleepManager.requestRestoreSleepNow()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                        Text("Restore lid sleep now")
+                            .fontWeight(.semibold)
+                    }
+                    .font(.system(size: 14))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Palette.danger)
+                    )
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+            }
             actionButton
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
@@ -132,6 +161,14 @@ private struct PopoverRoot: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 2)
             }
+
+            if let note = sleepManager.foreignSleepNote, !note.isEmpty {
+                Text(note)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Palette.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 2)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
@@ -163,7 +200,11 @@ private struct PopoverRoot: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: isOn ? "moon.zzz.fill" : "bolt.fill")
-                Text(isOn ? "Restore normal sleep" : "Keep awake with lid closed")
+                Text(isOn
+                      ? "Restore normal sleep"
+                      : (sleepManager.needsUserReEnable
+                         ? "Turn On again"
+                         : "Keep awake with lid closed"))
                     .fontWeight(.semibold)
             }
             .font(.system(size: 14))

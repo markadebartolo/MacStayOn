@@ -8,10 +8,12 @@
 
 /* Begin PBXBuildFile section */
 		3CF36D329C07A54648C4299E /* SleepAssertionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C829051A9A4218DD77F2C32C /* SleepAssertionManager.swift */; };
+		40AA5D4EAB30AA2E55B52318 /* SingleInstance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 111C9A1D39FAD52F166C817B /* SingleInstance.swift */; };
 		541567C97E61A0C6862FF6D1 /* LidMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE3FEBA7898EB6C7BE896A9 /* LidMonitor.swift */; };
 		7C340361E5950D9982E45146 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DD81DF72ADB6F9916C297486 /* Assets.xcassets */; };
 		7DF07DAB6995A0E7A56D2F13 /* MacStayOnApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1286037094980442A8B90FA /* MacStayOnApp.swift */; };
 		8CEFDAA5508E9FEF5B82C339 /* LidAngleMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1861888FA20FA7D488B3147 /* LidAngleMonitor.swift */; };
+		994BC54195A08448F33476C1 /* SleepSafetyResources.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55BE46A98A53AE3C8EB2853F /* SleepSafetyResources.swift */; };
 		F063D11696643220875CA735 /* ScreenFlashAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D114C7D8FD0580CC98FE07A /* ScreenFlashAlert.swift */; };
 		F92B6F7B687EB64657117621 /* HardwareProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27B3C8D004F277239D200C6C /* HardwareProfile.swift */; };
 		FE32EDAF8A7800965EBF4CCC /* SessionAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29FE82A6B2D548C210FA377A /* SessionAnalytics.swift */; };
@@ -19,10 +21,12 @@
 
 /* Begin PBXFileReference section */
 		0DE3FEBA7898EB6C7BE896A9 /* LidMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LidMonitor.swift; sourceTree = "<group>"; };
+		111C9A1D39FAD52F166C817B /* SingleInstance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SingleInstance.swift; sourceTree = "<group>"; };
 		25AB80C519C1F0D8850950B5 /* MacStayOn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacStayOn.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		27B3C8D004F277239D200C6C /* HardwareProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareProfile.swift; sourceTree = "<group>"; };
 		29FE82A6B2D548C210FA377A /* SessionAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionAnalytics.swift; sourceTree = "<group>"; };
 		2D114C7D8FD0580CC98FE07A /* ScreenFlashAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenFlashAlert.swift; sourceTree = "<group>"; };
+		55BE46A98A53AE3C8EB2853F /* SleepSafetyResources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepSafetyResources.swift; sourceTree = "<group>"; };
 		5D5B0E6326B2762E8D6D6FBC /* MacStayOn.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MacStayOn.entitlements; sourceTree = "<group>"; };
 		63BFA15901EA4552DFB5ED84 /* MacStayOn-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MacStayOn-Bridging-Header.h"; sourceTree = "<group>"; };
 		B1861888FA20FA7D488B3147 /* LidAngleMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LidAngleMonitor.swift; sourceTree = "<group>"; };
@@ -46,7 +50,9 @@
 				C1286037094980442A8B90FA /* MacStayOnApp.swift */,
 				2D114C7D8FD0580CC98FE07A /* ScreenFlashAlert.swift */,
 				29FE82A6B2D548C210FA377A /* SessionAnalytics.swift */,
+				111C9A1D39FAD52F166C817B /* SingleInstance.swift */,
 				C829051A9A4218DD77F2C32C /* SleepAssertionManager.swift */,
+				55BE46A98A53AE3C8EB2853F /* SleepSafetyResources.swift */,
 			);
 			path = MacStayOn;
 			sourceTree = "<group>";
@@ -144,7 +150,9 @@
 				7DF07DAB6995A0E7A56D2F13 /* MacStayOnApp.swift in Sources */,
 				F063D11696643220875CA735 /* ScreenFlashAlert.swift in Sources */,
 				FE32EDAF8A7800965EBF4CCC /* SessionAnalytics.swift in Sources */,
+				40AA5D4EAB30AA2E55B52318 /* SingleInstance.swift in Sources */,
 				3CF36D329C07A54648C4299E /* SleepAssertionManager.swift in Sources */,
+				994BC54195A08448F33476C1 /* SleepSafetyResources.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -157,7 +165,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = MacStayOn/MacStayOn.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MacStayOn/Info.plist;
@@ -165,7 +173,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.7;
+				MARKETING_VERSION = 1.1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.markdebartolo.MacStayOn;
 				PRODUCT_NAME = MacStayOn;
 				SDKROOT = macosx;
@@ -247,7 +255,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = MacStayOn/MacStayOn.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MacStayOn/Info.plist;
@@ -255,7 +263,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.7;
+				MARKETING_VERSION = 1.1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.markdebartolo.MacStayOn;
 				PRODUCT_NAME = MacStayOn;
 				SDKROOT = macosx;
