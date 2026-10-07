@@ -67,7 +67,7 @@ The popover matches what you see in the app — status first, then one primary a
 | **Header** | MacStayOn name and **ON** / **OFF** pill |
 | **Status** | *Normal sleep & screensaver* or *Stays awake · no screensaver* · machine (e.g. MacBook Pro · M5 Max) · AC or battery % |
 | **Primary button** | **Stay Awake** (orange) or **Restore normal sleep** when on — works lid open or closed |
-| **Keep display on** | On: no screensaver. Off: display may sleep/dark; key/click wakes it; Mac stays awake |
+| **Darken display** | Black overlay while Stay Awake is on (Mac stays awake; no display sleep). Key/click restores |
 | **Heat & battery guard** | Toggle + *Restore normal sleep at* **10–50%** battery. Also turns off if macOS reports **serious heat**. Only while MacStayOn is on. |
 | **Lid-close flash** | While On, closing the lid past ~85° pulses the screen orange until the lid is fully shut (or reopened). Needs a lid-angle sensor; skipped quietly on Macs without one. |
 | **This session** | Time awake (always visible). Expand to see apps that were working, timeline, and **Clear last session**. Collapsed by default. |

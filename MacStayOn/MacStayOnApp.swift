@@ -180,10 +180,10 @@ private struct PopoverRoot: View {
 
     private var statusHeadline: String {
         if !isOn { return "Normal sleep & screensaver" }
-        if sleepManager.keepDisplayAwake {
-            return "Stays awake · no screensaver"
+        if sleepManager.darkenDisplay {
+            return "Stays awake · black screen"
         }
-        return "Stays awake · display can sleep"
+        return "Stays awake · no screensaver"
     }
 
     private var powerLine: String {
@@ -342,27 +342,28 @@ private struct PopoverRoot: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Keep display on")
+                    Text("Darken display")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(isOn ? Palette.text : Palette.secondary)
-                    Text(sleepManager.keepDisplayAwake
-                          ? "Screen stays lit — no screensaver"
-                          : "Display may sleep or go dark; press a key or click to wake. Mac stays awake.")
+                    Text(sleepManager.darkenDisplay
+                          ? "Black screen now — Mac stays awake. Press a key or click to restore."
+                          : "Optional black cover while Stay Awake is on (does not sleep the display).")
                         .font(.system(size: 12))
                         .foregroundStyle(Palette.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 8)
                 Toggle("", isOn: Binding(
-                    get: { sleepManager.keepDisplayAwake },
-                    set: { sleepManager.setKeepDisplayAwake($0) }
+                    get: { sleepManager.darkenDisplay },
+                    set: { sleepManager.setDarkenDisplay($0) }
                 ))
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .controlSize(.small)
+                .disabled(!isOn)
             }
             if !isOn {
-                Text("Applies the next time Stay Awake is on.")
+                Text("Turn Stay Awake on first, then darken.")
                     .font(.system(size: 11))
                     .foregroundStyle(Palette.secondary)
             }

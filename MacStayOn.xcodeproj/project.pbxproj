@@ -15,6 +15,7 @@
 		8CEFDAA5508E9FEF5B82C339 /* LidAngleMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1861888FA20FA7D488B3147 /* LidAngleMonitor.swift */; };
 		994BC54195A08448F33476C1 /* SleepSafetyResources.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55BE46A98A53AE3C8EB2853F /* SleepSafetyResources.swift */; };
 		F063D11696643220875CA735 /* ScreenFlashAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D114C7D8FD0580CC98FE07A /* ScreenFlashAlert.swift */; };
+		F829DE180E0AEF1C4949D1BD /* DisplayDarkenOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B184CC33D848ECAD058D8DB /* DisplayDarkenOverlay.swift */; };
 		F92B6F7B687EB64657117621 /* HardwareProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27B3C8D004F277239D200C6C /* HardwareProfile.swift */; };
 		FE32EDAF8A7800965EBF4CCC /* SessionAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29FE82A6B2D548C210FA377A /* SessionAnalytics.swift */; };
 /* End PBXBuildFile section */
@@ -22,6 +23,7 @@
 /* Begin PBXFileReference section */
 		0DE3FEBA7898EB6C7BE896A9 /* LidMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LidMonitor.swift; sourceTree = "<group>"; };
 		111C9A1D39FAD52F166C817B /* SingleInstance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SingleInstance.swift; sourceTree = "<group>"; };
+		1B184CC33D848ECAD058D8DB /* DisplayDarkenOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayDarkenOverlay.swift; sourceTree = "<group>"; };
 		25AB80C519C1F0D8850950B5 /* MacStayOn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacStayOn.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		27B3C8D004F277239D200C6C /* HardwareProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareProfile.swift; sourceTree = "<group>"; };
 		29FE82A6B2D548C210FA377A /* SessionAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionAnalytics.swift; sourceTree = "<group>"; };
@@ -41,6 +43,7 @@
 			isa = PBXGroup;
 			children = (
 				DD81DF72ADB6F9916C297486 /* Assets.xcassets */,
+				1B184CC33D848ECAD058D8DB /* DisplayDarkenOverlay.swift */,
 				27B3C8D004F277239D200C6C /* HardwareProfile.swift */,
 				EF158FFE4308ECB5751ADE98 /* Info.plist */,
 				B1861888FA20FA7D488B3147 /* LidAngleMonitor.swift */,
@@ -144,6 +147,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F829DE180E0AEF1C4949D1BD /* DisplayDarkenOverlay.swift in Sources */,
 				F92B6F7B687EB64657117621 /* HardwareProfile.swift in Sources */,
 				8CEFDAA5508E9FEF5B82C339 /* LidAngleMonitor.swift in Sources */,
 				541567C97E61A0C6862FF6D1 /* LidMonitor.swift in Sources */,
@@ -165,7 +169,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = MacStayOn/MacStayOn.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MacStayOn/Info.plist;
@@ -173,7 +177,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.markdebartolo.MacStayOn;
 				PRODUCT_NAME = MacStayOn;
 				SDKROOT = macosx;
@@ -255,7 +259,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = MacStayOn/MacStayOn.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MacStayOn/Info.plist;
@@ -263,7 +267,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.markdebartolo.MacStayOn;
 				PRODUCT_NAME = MacStayOn;
 				SDKROOT = macosx;

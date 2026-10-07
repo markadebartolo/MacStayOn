@@ -18,8 +18,9 @@ final class SleepAssertionManager: ObservableObject {
     private static let savedPrevKey = "savedDisablesleepValue"
     private static let guardEnabledKey = "macStayOnGuardEnabled"
     private static let batteryFloorKey = "macStayOnBatteryFloor"
-    /// true = Mode A (display stays on / no screensaver); false = Mode B (display may sleep).
-    private static let keepDisplayAwakeKey = "macStayOnKeepDisplayAwake"
+    private static let darkenDisplayKey = "macStayOnDarkenDisplay"
+    /// Legacy v1.2.0 key — no longer used for assertion mode (was unsafe display-sleep).
+    private static let legacyKeepDisplayAwakeKey = "macStayOnKeepDisplayAwake"
     private static let systemAssertionName = "MacStayOn: keep system awake" as CFString
     private static let displayAssertionName = "MacStayOn: keep display awake (no screensaver)" as CFString
 
@@ -39,8 +40,8 @@ final class SleepAssertionManager: ObservableObject {
     @Published private(set) var isSleepStuckWhileOff: Bool = false
     /// Other apps holding sleep assertions (not MacStayOn / SleepDisabled).
     @Published private(set) var foreignSleepNote: String?
-    /// Mode A: display stays on. Mode B: display may sleep/dark; machine stays awake.
-    @Published private(set) var keepDisplayAwake: Bool
+    /// Black-screen cover while Stay Awake — does **not** allow display sleep.
+    @Published private(set) var darkenDisplay: Bool
 
     private var guardTimer: Timer?
     private var guardTripping = false
@@ -59,8 +60,6 @@ final class SleepAssertionManager: ObservableObject {
     private var displayAssertionID: IOPMAssertionID = 0
     private var hasAssertion = false
     private var processActivity: NSObjectProtocol?
-    /// Whether `processActivity` currently includes `.idleDisplaySleepDisabled`.
-    private var processActivityHoldsDisplay = false
     private var isActivating = false
     private var didFinishLaunchSetup = false
     private let lidMonitor = LidMonitor()
@@ -100,24 +99,31 @@ final class SleepAssertionManager: ObservableObject {
         }
         let storedFloor = defaults.object(forKey: Self.batteryFloorKey) as? Int
         batteryFloor = Self.clampFloor(storedFloor ?? 20)
-        if defaults.object(forKey: Self.keepDisplayAwakeKey) == nil {
-            keepDisplayAwake = true
+        // Fresh default Off. Do not migrate legacy "display may sleep" — that mode was unsafe.
+        if defaults.object(forKey: Self.darkenDisplayKey) == nil {
+            darkenDisplay = false
+            defaults.removeObject(forKey: Self.legacyKeepDisplayAwakeKey)
         } else {
-            keepDisplayAwake = defaults.bool(forKey: Self.keepDisplayAwakeKey)
+            darkenDisplay = defaults.bool(forKey: Self.darkenDisplayKey)
         }
         // Instant fallback from sysctl; marketing name/chip fill in after warmCache.
         machineLabel = HardwareProfile.readModelIdentifierForDisplay()
         startGuardMonitor()
     }
 
-    /// Mode A (`true`): hold display awake / no screensaver.
-    /// Mode B (`false`): allow idle display sleep; keep system awake (SleepDisabled + PreventSystemSleep).
-    func setKeepDisplayAwake(_ enabled: Bool) {
-        guard keepDisplayAwake != enabled else { return }
-        keepDisplayAwake = enabled
-        UserDefaults.standard.set(enabled, forKey: Self.keepDisplayAwakeKey)
+    /// Black-screen cover while Stay Awake is On. Does not allow display sleep —
+    /// system + display-idle assertions stay held. Key/click turns this off.
+    func setDarkenDisplay(_ enabled: Bool) {
+        guard darkenDisplay != enabled else {
+            if enabled, isEnabled { applyDarkenOverlay() }
+            return
+        }
+        darkenDisplay = enabled
+        UserDefaults.standard.set(enabled, forKey: Self.darkenDisplayKey)
         if isEnabled {
-            applyDisplayPowerMode()
+            applyDarkenOverlay()
+        } else if !enabled {
+            DisplayDarkenOverlay.deactivate()
         }
         refreshStatusDetail()
     }
@@ -862,6 +868,7 @@ final class SleepAssertionManager: ObservableObject {
         lidMonitor.onClamshellChange = nil
         stopLidAngleWatch()
         ScreenFlashAlert.cancel()
+        DisplayDarkenOverlay.deactivate()
         if retainAnalytics {
             analytics.stopAndRetainSummary()
         } else {
@@ -973,26 +980,34 @@ final class SleepAssertionManager: ObservableObject {
 
     // MARK: - Assertion
 
-    /// Holds system (+ optional display-idle) assertions for the Stay Awake session.
-    /// Mode A: PreventSystemSleep + PreventUserIdleDisplaySleep (no screensaver).
-    /// Mode B: PreventSystemSleep only — display may idle-sleep; key/click wakes it.
-    /// Lid-close stay-awake still uses SleepDisabled via the root watchdog.
+    /// Holds system + display-idle assertions for the whole Stay Awake session.
+    /// Darken mode uses a black overlay only — never drops display-sleep prevention.
     @discardableResult
     private func createAssertion() -> Bool {
         ensureAssertionsHeld()
+        applyDarkenOverlay()
         return hasAssertion
     }
 
-    /// Apply Mode A / Mode B while Stay Awake is On (swap display assertion + ProcessInfo).
-    private func applyDisplayPowerMode() {
-        ensureAssertionsHeld()
-        if keepDisplayAwake {
-            // Returning to Mode A — nudge the display awake if it was dark.
+    /// Sync black overlay with `darkenDisplay` while Stay Awake is On.
+    private func applyDarkenOverlay() {
+        guard isEnabled else {
+            DisplayDarkenOverlay.deactivate()
+            return
+        }
+        if darkenDisplay {
+            ScreenFlashAlert.cancel()
+            DisplayDarkenOverlay.activate { [weak self] in
+                // Key/click — restore display and clear the preference.
+                self?.setDarkenDisplay(false)
+            }
+        } else {
+            DisplayDarkenOverlay.deactivate()
             declareUserActivityToWakeDisplay()
         }
     }
 
-    /// Create / adjust assertions for the current display mode. Safe while enabled.
+    /// Create any missing assertions. Always hold display-idle while Stay Awake is On.
     private func ensureAssertionsHeld() {
         if systemAssertionID == 0 {
             var systemID: IOPMAssertionID = 0
@@ -1007,66 +1022,35 @@ final class SleepAssertionManager: ObservableObject {
             }
         }
 
-        if keepDisplayAwake {
-            // Mode A: block idle display sleep / screensaver (lid open or closed).
-            if displayAssertionID == 0 {
-                var displayID: IOPMAssertionID = 0
-                let displayResult = IOPMAssertionCreateWithName(
-                    kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
-                    IOPMAssertionLevel(kIOPMAssertionLevelOn),
-                    Self.displayAssertionName,
-                    &displayID
-                )
-                if displayResult == kIOReturnSuccess {
-                    displayAssertionID = displayID
-                }
+        if displayAssertionID == 0 {
+            var displayID: IOPMAssertionID = 0
+            let displayResult = IOPMAssertionCreateWithName(
+                kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
+                IOPMAssertionLevel(kIOPMAssertionLevelOn),
+                Self.displayAssertionName,
+                &displayID
+            )
+            if displayResult == kIOReturnSuccess {
+                displayAssertionID = displayID
             }
-        } else {
-            // Mode B: allow real display sleep; system stays up via PreventSystemSleep + SleepDisabled.
-            releaseDisplayAssertionOnly()
         }
 
-        ensureProcessActivityMatchesDisplayMode()
+        if processActivity == nil {
+            processActivity = ProcessInfo.processInfo.beginActivity(
+                options: [
+                    .idleDisplaySleepDisabled,
+                    .idleSystemSleepDisabled,
+                    .suddenTerminationDisabled,
+                    .automaticTerminationDisabled,
+                    .userInitiated,
+                ],
+                reason: "MacStayOn stay awake — no screensaver"
+            )
+        }
 
-        // System assertion is required; display assertion only in Mode A.
-        hasAssertion = systemAssertionID != 0 && (keepDisplayAwake ? displayAssertionID != 0 : true)
+        hasAssertion = systemAssertionID != 0 && displayAssertionID != 0
     }
 
-    private func releaseDisplayAssertionOnly() {
-        if displayAssertionID != 0 {
-            IOPMAssertionRelease(displayAssertionID)
-            displayAssertionID = 0
-        }
-    }
-
-    private func ensureProcessActivityMatchesDisplayMode() {
-        let wantDisplayHold = keepDisplayAwake
-        if processActivity != nil, processActivityHoldsDisplay == wantDisplayHold {
-            return
-        }
-        if let processActivity {
-            ProcessInfo.processInfo.endActivity(processActivity)
-            self.processActivity = nil
-        }
-        var options: ProcessInfo.ActivityOptions = [
-            .idleSystemSleepDisabled,
-            .suddenTerminationDisabled,
-            .automaticTerminationDisabled,
-            .userInitiated,
-        ]
-        if wantDisplayHold {
-            options.insert(.idleDisplaySleepDisabled)
-        }
-        processActivity = ProcessInfo.processInfo.beginActivity(
-            options: options,
-            reason: wantDisplayHold
-                ? "MacStayOn stay awake — display on, no screensaver"
-                : "MacStayOn stay awake — display may sleep"
-        )
-        processActivityHoldsDisplay = wantDisplayHold
-    }
-
-    /// Light the display after switching back to Mode A.
     private func declareUserActivityToWakeDisplay() {
         var activityID: IOPMAssertionID = 0
         _ = IOPMAssertionDeclareUserActivity(
@@ -1077,16 +1061,19 @@ final class SleepAssertionManager: ObservableObject {
     }
 
     private func releaseAssertion() {
+        DisplayDarkenOverlay.deactivate()
         if systemAssertionID != 0 {
             IOPMAssertionRelease(systemAssertionID)
             systemAssertionID = 0
         }
-        releaseDisplayAssertionOnly()
+        if displayAssertionID != 0 {
+            IOPMAssertionRelease(displayAssertionID)
+            displayAssertionID = 0
+        }
         if let processActivity {
             ProcessInfo.processInfo.endActivity(processActivity)
             self.processActivity = nil
         }
-        processActivityHoldsDisplay = false
         hasAssertion = false
     }
 
@@ -1195,13 +1182,9 @@ final class SleepAssertionManager: ObservableObject {
             } else {
                 flag = "SleepDisabled=?"
             }
-            let display: String
-            if keepDisplayAwake {
-                display = "display/screensaver \(displayAssertionID != 0 ? "held" : "off")"
-            } else {
-                display = "display may sleep"
-            }
-            statusDetail = "\(flag) · system \(systemAssertionID != 0 ? "on" : "off") · \(display) · \(power)"
+            let display = "display/screensaver \(displayAssertionID != 0 ? "held" : "off")"
+            let dark = darkenDisplay ? " · black screen" : ""
+            statusDetail = "\(flag) · system \(systemAssertionID != 0 ? "on" : "off") · \(display)\(dark) · \(power)"
         } else if disablesleep == 1 || (disablesleep == nil && hasStayAwakeStateArtifacts()) {
             statusDetail = "CRITICAL: Off but lid sleep still disabled — approve admin to restore (bag risk)"
         } else if disablesleep == nil {
