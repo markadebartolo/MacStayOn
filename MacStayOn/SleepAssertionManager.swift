@@ -42,6 +42,12 @@ final class SleepAssertionManager: ObservableObject {
     @Published private(set) var foreignSleepNote: String?
     /// Black-screen cover while Stay Awake — does **not** allow display sleep.
     @Published private(set) var darkenDisplay: Bool
+    /// Heat/safety ack shown inside the menu popover before admin/Touch ID.
+    @Published private(set) var pendingEnableConfirm: Bool = false
+    /// Lid reopened while Stay Awake was on — choose Turn Off / Keep On in the menu.
+    @Published private(set) var pendingLidOpenChoice: Bool = false
+    /// Duration string for the lid-open menu prompt.
+    @Published private(set) var lidOpenSessionDuration: String = ""
 
     private var guardTimer: Timer?
     private var guardTripping = false
@@ -215,6 +221,8 @@ final class SleepAssertionManager: ObservableObject {
         if enabled {
             activate()
         } else {
+            pendingEnableConfirm = false
+            pendingLidOpenChoice = false
             deactivate(persistOff: true)
         }
     }
@@ -236,8 +244,8 @@ final class SleepAssertionManager: ObservableObject {
         min(50, max(10, percent))
     }
 
-    /// Interactive Turn On from the menu: heat warning first, then admin/pmset flow.
-    /// Cancel leaves the feature Off. Not used when turning Off.
+    /// Start Stay Awake from the menu: show inline heat/safety confirm in the popover
+    /// (no center-screen alert), then admin/Touch ID on confirm.
     func requestEnableFromUser() {
         if isEnabled {
             refreshStatusDetail()
@@ -250,38 +258,40 @@ final class SleepAssertionManager: ObservableObject {
                 return
             }
         }
+        pendingLidOpenChoice = false
+        pendingEnableConfirm = true
+        lastError = nil
+        refreshStatusDetail()
+    }
 
-        let alert = NSAlert()
-        if HardwareProfile.isFanlessPortable {
-            let info = HardwareProfile.current
-            if info.marketingName.localizedCaseInsensitiveContains("Neo")
-                || info.modelIdentifier == "Mac17,5" {
-                alert.messageText = "Keep MacBook Neo awake?"
-            } else if info.marketingName.localizedCaseInsensitiveContains("Air")
-                || info.modelIdentifier.localizedCaseInsensitiveContains("MacBookAir") {
-                alert.messageText = "Keep MacBook Air awake?"
-            } else {
-                alert.messageText = "Keep this fanless Mac awake?"
-            }
-        } else {
-            alert.messageText = "Keep Mac awake?"
-        }
-        alert.informativeText = HardwareProfile.enableHeatWarningBody
-        alert.alertStyle = .warning
-        alert.icon = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: nil)
-        alert.addButton(withTitle: "Turn On")
-        alert.addButton(withTitle: "Cancel")
+    /// User accepted heat/safety copy in the menu — run admin/pmset activate.
+    func confirmEnableFromMenu() {
+        guard pendingEnableConfirm, !isEnabled else { return }
+        pendingEnableConfirm = false
+        activate()
+    }
 
-        NSApp.activate(ignoringOtherApps: true)
-        let response = alert.runModal()
-        if response == .alertFirstButtonReturn {
-            activate()
-        } else {
-            isEnabled = false
-            lastError = nil
-            UserDefaults.standard.set(false, forKey: Self.defaultsKey)
-            refreshStatusDetail()
-        }
+    /// User canceled the in-menu heat/safety confirm.
+    func cancelEnableFromMenu() {
+        pendingEnableConfirm = false
+        isEnabled = false
+        lastError = nil
+        UserDefaults.standard.set(false, forKey: Self.defaultsKey)
+        refreshStatusDetail()
+    }
+
+    /// Lid-open menu choice: restore normal sleep.
+    func confirmTurnOffAfterLidOpen() {
+        pendingLidOpenChoice = false
+        isPromptingLidOpen = false
+        setEnabled(false)
+    }
+
+    /// Lid-open menu choice: leave Stay Awake on.
+    func confirmKeepOnAfterLidOpen() {
+        pendingLidOpenChoice = false
+        isPromptingLidOpen = false
+        refreshStatusDetail()
     }
 
     // MARK: - Activate
@@ -944,32 +954,15 @@ final class SleepAssertionManager: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
             guard let self, self.isEnabled else {
                 self?.isPromptingLidOpen = false
+                self?.pendingLidOpenChoice = false
                 return
             }
-            self.promptTurnOffAfterLidOpen()
+            // In-menu choice — no center-screen alert. Open the popover via status item click.
+            self.lidOpenSessionDuration = SessionAnalytics.formatDuration(self.analytics.elapsed)
+            self.pendingLidOpenChoice = true
             self.isPromptingLidOpen = false
-        }
-    }
-
-    private func promptTurnOffAfterLidOpen() {
-        let elapsed = SessionAnalytics.formatDuration(analytics.elapsed)
-
-        let alert = NSAlert()
-        alert.messageText = "Lid opened — turn MacStayOn off?"
-        alert.informativeText = """
-        Stay Awake was on for \(elapsed) while the lid was closed.
-
-        Turn it off to restore normal lid sleep, or keep it on for another closed-lid session.
-        """
-        alert.alertStyle = .informational
-        alert.icon = NSImage(systemSymbolName: "laptopcomputer.and.arrow.down", accessibilityDescription: nil)
-        alert.addButton(withTitle: "Turn Off")
-        alert.addButton(withTitle: "Keep On")
-
-        NSApp.activate(ignoringOtherApps: true)
-        let response = alert.runModal()
-        if response == .alertFirstButtonReturn {
-            setEnabled(false)
+            self.refreshStatusDetail()
+            NSApp.activate(ignoringOtherApps: true)
         }
     }
 

@@ -96,9 +96,15 @@ private struct PopoverRoot: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 8)
             }
-            actionButton
-                .padding(.horizontal, 16)
-                .padding(.bottom, 16)
+            if sleepManager.pendingEnableConfirm {
+                enableConfirmBlock
+            } else if sleepManager.pendingLidOpenChoice {
+                lidOpenChoiceBlock
+            } else {
+                actionButton
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 16)
+            }
             Divider().overlay(Palette.line)
             displayModeBlock
             Divider().overlay(Palette.line)
@@ -112,6 +118,105 @@ private struct PopoverRoot: View {
         }
         .frame(width: 340)
         .background(Palette.panel.ignoresSafeArea())
+    }
+
+    /// Heat/bag safety ack inside the popover — then Touch ID / admin only.
+    private var enableConfirmBlock: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(Palette.orange)
+                Text(HardwareProfile.enableHeatWarningTitle)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Palette.text)
+            }
+            Text(HardwareProfile.enableHeatWarningBody)
+                .font(.system(size: 11))
+                .foregroundStyle(Palette.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Next: approve admin / Touch ID so MacStayOn can change lid-sleep settings.")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Palette.secondary)
+            HStack(spacing: 8) {
+                Button {
+                    sleepManager.cancelEnableFromMenu()
+                } label: {
+                    Text("Cancel")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Palette.chip)
+                        )
+                        .foregroundStyle(Palette.text)
+                }
+                .buttonStyle(.plain)
+                Button {
+                    sleepManager.confirmEnableFromMenu()
+                } label: {
+                    Text("Turn On")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Palette.orange)
+                        )
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 16)
+    }
+
+    /// After lid reopen — choose in the menu, not a center alert.
+    private var lidOpenChoiceBlock: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Lid opened — turn Stay Awake off?")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Palette.text)
+            Text("Stay Awake was on for \(sleepManager.lidOpenSessionDuration) while the lid was closed. Turn it off to restore normal lid sleep, or keep it on.")
+                .font(.system(size: 11))
+                .foregroundStyle(Palette.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 8) {
+                Button {
+                    sleepManager.confirmKeepOnAfterLidOpen()
+                } label: {
+                    Text("Keep On")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Palette.chip)
+                        )
+                        .foregroundStyle(Palette.text)
+                }
+                .buttonStyle(.plain)
+                Button {
+                    sleepManager.confirmTurnOffAfterLidOpen()
+                } label: {
+                    Text("Turn Off")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Palette.iconFill)
+                        )
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 16)
     }
 
     private var header: some View {
@@ -179,6 +284,12 @@ private struct PopoverRoot: View {
     }
 
     private var statusHeadline: String {
+        if sleepManager.pendingEnableConfirm {
+            return "Confirm Stay Awake"
+        }
+        if sleepManager.pendingLidOpenChoice {
+            return "Lid opened"
+        }
         if !isOn { return "Normal sleep & screensaver" }
         if sleepManager.darkenDisplay {
             return "Stays awake · black screen"

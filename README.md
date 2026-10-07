@@ -39,7 +39,7 @@ Close the lid and keep working — **Cursor, Claude, builds, and other agents** 
 1. Download **[MacStayOn-macos-arm64.zip](https://github.com/markadebartolo/MacStayOn/releases/latest)** from Releases.
 2. Unzip and open **MacStayOn.app** (notarized builds open normally; no right-click workaround needed).
 3. Click the **moon** icon in the menu bar.
-4. Tap **Stay Awake** → confirm the heat warning → approve **admin once** with **Touch ID** when offered (or password). That blocks lid sleep on battery **and** keeps the screensaver off with the lid open.
+4. Tap **Stay Awake** → confirm the heat warning **in the menu** → approve **admin once** with **Touch ID** when offered (or password). That blocks lid sleep on battery **and** keeps the screensaver off with the lid open.
 5. Close the lid when you are ready. Open it again and MacStayOn asks whether to **restore normal sleep** or stay on.
 
 ### Who can use the download

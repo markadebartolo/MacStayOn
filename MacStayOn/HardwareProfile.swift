@@ -87,6 +87,21 @@ enum HardwareProfile {
         return false
     }
 
+    /// Short title for the in-menu Stay Awake confirmation.
+    static var enableHeatWarningTitle: String {
+        guard isFanlessPortable else { return "Stay Awake — heat warning" }
+        let info = current
+        if info.marketingName.localizedCaseInsensitiveContains("Neo")
+            || info.modelIdentifier == "Mac17,5" {
+            return "Stay Awake on MacBook Neo?"
+        }
+        if info.marketingName.localizedCaseInsensitiveContains("Air")
+            || info.modelIdentifier.localizedCaseInsensitiveContains("MacBookAir") {
+            return "Stay Awake on MacBook Air?"
+        }
+        return "Stay Awake on this fanless Mac?"
+    }
+
     /// Turn On heat copy. Fanless Air / Neo get a shorter closed-lid advisory.
     static var enableHeatWarningBody: String {
         let common = """
