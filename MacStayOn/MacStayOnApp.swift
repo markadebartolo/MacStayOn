@@ -100,6 +100,8 @@ private struct PopoverRoot: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
             Divider().overlay(Palette.line)
+            displayModeBlock
+            Divider().overlay(Palette.line)
             guardBlock
             if analytics.isLive || analytics.hasSummary {
                 Divider().overlay(Palette.line)
@@ -146,7 +148,7 @@ private struct PopoverRoot: View {
 
     private var statusBlock: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(isOn ? "Stays awake · no screensaver" : "Normal sleep & screensaver")
+            Text(statusHeadline)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Palette.text)
 
@@ -174,6 +176,14 @@ private struct PopoverRoot: View {
         .padding(.horizontal, 16)
         .padding(.top, 14)
         .padding(.bottom, 12)
+    }
+
+    private var statusHeadline: String {
+        if !isOn { return "Normal sleep & screensaver" }
+        if sleepManager.keepDisplayAwake {
+            return "Stays awake · no screensaver"
+        }
+        return "Stays awake · display can sleep"
     }
 
     private var powerLine: String {
@@ -326,6 +336,39 @@ private struct PopoverRoot: View {
             return row.isRunning ? "idle" : "stopped"
         }
         return row.wasBackgroundWork ? "background work" : "this session"
+    }
+
+    private var displayModeBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Keep display on")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(isOn ? Palette.text : Palette.secondary)
+                    Text(sleepManager.keepDisplayAwake
+                          ? "Screen stays lit — no screensaver"
+                          : "Display may sleep or go dark; press a key or click to wake. Mac stays awake.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Palette.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Toggle("", isOn: Binding(
+                    get: { sleepManager.keepDisplayAwake },
+                    set: { sleepManager.setKeepDisplayAwake($0) }
+                ))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+            }
+            if !isOn {
+                Text("Applies the next time Stay Awake is on.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Palette.secondary)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
     }
 
     private var guardBlock: some View {
