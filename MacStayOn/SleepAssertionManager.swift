@@ -227,15 +227,15 @@ final class SleepAssertionManager: ObservableObject {
             let info = HardwareProfile.current
             if info.marketingName.localizedCaseInsensitiveContains("Neo")
                 || info.modelIdentifier == "Mac17,5" {
-                alert.messageText = "Keep MacBook Neo awake with lid closed?"
+                alert.messageText = "Keep MacBook Neo awake?"
             } else if info.marketingName.localizedCaseInsensitiveContains("Air")
                 || info.modelIdentifier.localizedCaseInsensitiveContains("MacBookAir") {
-                alert.messageText = "Keep MacBook Air awake with lid closed?"
+                alert.messageText = "Keep MacBook Air awake?"
             } else {
-                alert.messageText = "Keep this fanless Mac awake with lid closed?"
+                alert.messageText = "Keep this fanless Mac awake?"
             }
         } else {
-            alert.messageText = "Keep Mac awake with lid closed?"
+            alert.messageText = "Keep Mac awake?"
         }
         alert.informativeText = HardwareProfile.enableHeatWarningBody
         alert.alertStyle = .warning
@@ -1134,7 +1134,7 @@ final class SleepAssertionManager: ObservableObject {
         } else if disablesleep == nil {
             statusDetail = "Could not verify lid sleep · \(power)"
         } else {
-            statusDetail = "Normal lid sleep · \(power)"
+            statusDetail = "Normal sleep · \(power)"
         }
     }
 

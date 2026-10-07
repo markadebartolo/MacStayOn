@@ -90,7 +90,7 @@ enum HardwareProfile {
     /// Turn On heat copy. Fanless Air / Neo get a shorter closed-lid advisory.
     static var enableHeatWarningBody: String {
         let common = """
-        MacStayOn will prevent sleep when you close the lid so agents and other work can keep running.
+        Stay Awake keeps the Mac from sleeping and blocks the screensaver with the lid open or closed, so agents and other work can keep running.
 
         A closed Mac can overheat in a confined space. Do not put it in a bag, under a blanket, or in another enclosed space while this is on.
         """

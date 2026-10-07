@@ -54,8 +54,8 @@ private struct MenuBarLabel: View {
             .symbolRenderingMode(.hierarchical)
             .accessibilityLabel(sleepManager.isEnabled ? "MacStayOn On" : "MacStayOn Off")
             .help(sleepManager.isEnabled
-                  ? "MacStayOn: lid closed stays awake"
-                  : "MacStayOn: normal lid sleep")
+                  ? "MacStayOn: stays awake, no screensaver"
+                  : "MacStayOn: normal sleep")
     }
 }
 
@@ -146,7 +146,7 @@ private struct PopoverRoot: View {
 
     private var statusBlock: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(isOn ? "Lid closed: stays awake" : "Lid closed: normal sleep")
+            Text(isOn ? "Stays awake · no screensaver" : "Normal sleep & screensaver")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Palette.text)
 
@@ -204,7 +204,7 @@ private struct PopoverRoot: View {
                       ? "Restore normal sleep"
                       : (sleepManager.needsUserReEnable
                          ? "Turn On again"
-                         : "Keep awake with lid closed"))
+                         : "Stay Awake"))
                     .fontWeight(.semibold)
             }
             .font(.system(size: 14))

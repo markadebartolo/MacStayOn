@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/media/macstayon-menu.png" alt="MacStayOn menu bar panel — Keep awake with lid closed, heat &amp; battery guard, session timeline" width="360">
+  <img src="docs/media/macstayon-menu.png" alt="MacStayOn menu bar panel — Stay Awake, heat &amp; battery guard, session timeline" width="360">
 </p>
 
 ---
@@ -39,7 +39,7 @@ Close the lid and keep working — **Cursor, Claude, builds, and other agents** 
 1. Download **[MacStayOn-macos-arm64.zip](https://github.com/markadebartolo/MacStayOn/releases/latest)** from Releases.
 2. Unzip and open **MacStayOn.app** (notarized builds open normally; no right-click workaround needed).
 3. Click the **moon** icon in the menu bar.
-4. Tap **Keep awake with lid closed** → confirm the heat warning → approve **admin once** with **Touch ID** when offered (or password) so MacStayOn can block lid sleep on battery.
+4. Tap **Stay Awake** → confirm the heat warning → approve **admin once** with **Touch ID** when offered (or password). That blocks lid sleep on battery **and** keeps the screensaver off with the lid open.
 5. Close the lid when you are ready. Open it again and MacStayOn asks whether to **restore normal sleep** or stay on.
 
 ### Who can use the download
@@ -65,8 +65,8 @@ The popover matches what you see in the app — status first, then one primary a
 | Section | What it does |
 |--------|----------------|
 | **Header** | MacStayOn name and **ON** / **OFF** pill |
-| **Status** | *Lid closed: normal sleep* or *Lid closed: stays awake* · machine (e.g. MacBook Pro · M5 Max) · AC or battery % |
-| **Primary button** | **Keep awake with lid closed** (orange) or **Restore normal sleep** when on |
+| **Status** | *Normal sleep & screensaver* or *Stays awake · no screensaver* · machine (e.g. MacBook Pro · M5 Max) · AC or battery % |
+| **Primary button** | **Stay Awake** (orange) or **Restore normal sleep** when on — works lid open or closed |
 | **Heat & battery guard** | Toggle + *Restore normal sleep at* **10–50%** battery. Also turns off if macOS reports **serious heat**. Only while MacStayOn is on. |
 | **Lid-close flash** | While On, closing the lid past ~85° pulses the screen orange until the lid is fully shut (or reopened). Needs a lid-angle sensor; skipped quietly on Macs without one. |
 | **This session** | Time awake (always visible). Expand to see apps that were working, timeline, and **Clear last session**. Collapsed by default. |
