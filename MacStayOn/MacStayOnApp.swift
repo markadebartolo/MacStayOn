@@ -29,6 +29,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Keep menu-bar-only presentation; accidental .regular activation
+        // can leave a full app menu and confuse MenuBarExtra window opens.
+        if NSApp.activationPolicy() != .accessory {
+            _ = NSApp.setActivationPolicy(.accessory)
+        }
         HardwareProfile.warmCache { [sleepManager] in
             sleepManager.refreshMachineLabel()
         }
