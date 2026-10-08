@@ -100,7 +100,7 @@ private struct PopoverRoot: View {
     }
 
     /// Wide short strip under the menu bar (not a tall centered card).
-    private var barWidth: CGFloat { 820 }
+    private var barWidth: CGFloat { 920 }
 
     private var showsSecondaryNote: Bool {
         if sleepManager.pendingEnableConfirm || sleepManager.pendingLidOpenChoice { return false }
@@ -112,11 +112,11 @@ private struct PopoverRoot: View {
     // MARK: Main horizontal strip
 
     private var mainStrip: some View {
-        HStack(alignment: .center, spacing: 14) {
+        HStack(alignment: .center, spacing: 10) {
             brandCluster
             thinDivider
             statusCluster
-            Spacer(minLength: 8)
+            Spacer(minLength: 6)
             if !sleepManager.pendingEnableConfirm && !sleepManager.pendingLidOpenChoice {
                 primaryAction
             }
@@ -129,7 +129,7 @@ private struct PopoverRoot: View {
             thinDivider
             quitControl
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .frame(minHeight: 56)
     }
@@ -167,7 +167,7 @@ private struct PopoverRoot: View {
                 .foregroundStyle(Palette.secondary)
                 .lineLimit(1)
         }
-        .frame(minWidth: 160, maxWidth: 240, alignment: .leading)
+        .frame(minWidth: 140, maxWidth: 200, alignment: .leading)
     }
 
     private var primaryAction: some View {
