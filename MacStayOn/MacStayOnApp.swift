@@ -97,6 +97,8 @@ private struct PopoverRoot: View {
         }
         .frame(width: barWidth)
         .background(Palette.panel.ignoresSafeArea())
+        // MenuBarExtra anchors near the status item; pin to screen-top center instead.
+        .background(CenterTopMenuPanel())
     }
 
     /// Wide short strip under the menu bar (not a tall centered card).

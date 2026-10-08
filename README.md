@@ -60,7 +60,7 @@ Not sure which chip you have? Apple menu → **About This Mac** — look for **C
 
 ## The menu panel
 
-Click the menu-bar icon for a **compact horizontal bar** under the menu bar (not a tall card in the middle of the screen). Left to right: brand/status, primary action, Darken, Heat & battery, session, Quit. Confirms and session details expand as short strips under the bar.
+Click the menu-bar icon for a **compact horizontal bar** centered under the menu bar at the top of the screen (not beside the icon, and not a tall card in the middle). Left to right: brand/status, primary action, Darken, Heat & battery, session, Quit. Confirms and session details expand as short strips under the bar.
 
 | Control | What it does |
 |--------|----------------|
