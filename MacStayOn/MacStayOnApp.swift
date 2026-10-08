@@ -34,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if NSApp.activationPolicy() != .accessory {
             _ = NSApp.setActivationPolicy(.accessory)
         }
+        MenuPanelCentering.shared.start()
         HardwareProfile.warmCache { [sleepManager] in
             sleepManager.refreshMachineLabel()
         }
