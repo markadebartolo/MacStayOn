@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>MacStayOn</strong><br>
-  <sub>Menu bar control for closed-lid stay awake — built for long agent runs</sub>
+  <sub>Menu bar stay-awake for closed-lid agent runs — compact horizontal panel, centered under the menu bar</sub>
 </p>
 
 <p align="center">
@@ -21,14 +21,29 @@
 </p>
 
 <p align="center">
-  <img src="docs/media/macstayon-menu.png" alt="MacStayOn menu bar panel — Stay Awake, heat &amp; battery guard, session timeline" width="360">
+  <img src="docs/media/macstayon-menu.png" alt="MacStayOn horizontal menu — Stay Awake, Darken display, Heat &amp; battery, session, Quit — centered under the menu bar" width="920">
 </p>
+
+---
+
+## Features
+
+- **Compact horizontal menu** — wide short strip under the menu bar (not a tall card covering the middle of the screen)
+- **Always top-centered** — opens in the horizontal center of the screen no matter where the MacStayOn icon sits in the menu bar
+- **Stay Awake** — keeps the Mac awake with the lid closed or open; blocks the screensaver while on
+- **Darken display** — optional black overlay while Stay Awake is on (Mac stays awake; key/click restores)
+- **Heat & battery guard** — auto Off at a chosen battery floor (10–50%) or on serious heat
+- **In-menu confirms** — heat warning and lid-open “turn off?” stay in the panel (fewer separate prompts)
+- **Session chip** — elapsed time; expand for apps that were working (local only)
+- **Touch ID admin** — Developer ID build can offer Touch ID for the one-time `pmset` approve
+- **Bag-safe Off** — Off / Quit always restore normal lid sleep (`SleepDisabled=0`)
+- **Menu bar only** — no Dock icon, no extra windows
 
 ---
 
 ## Why MacStayOn
 
-Close the lid and keep working — **Cursor, Claude, builds, and other agents** can keep running without an external display. MacStayOn lives in the **menu bar** (no Dock icon). One tap turns stay-awake on; turn it off and **normal lid sleep** comes back.
+Close the lid and keep working — **Cursor, Claude, builds, and other agents** can keep running without an external display. MacStayOn lives in the **menu bar**. One tap turns stay-awake on; turn it off and **normal lid sleep** comes back.
 
 > **Safety first:** A closed Mac can overheat in a bag or under a blanket. MacStayOn warns you before enabling and can **turn itself off** on low battery or serious heat. On a fanless **MacBook Air** or **MacBook Neo**, the Turn On warning also advises shorter closed-lid sessions.
 
@@ -115,5 +130,5 @@ spctl -a -vv dist/MacStayOn.app # Notarized Developer ID (after notarize.sh)
 ---
 
 <p align="center">
-  <sub>Menu bar · Local session analytics · Notarized macOS builds on Releases</sub>
+  <sub>Menu bar · Horizontal top-centered panel · Local session analytics · Notarized macOS builds on Releases</sub>
 </p>
