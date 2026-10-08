@@ -79,10 +79,10 @@ Click the menu-bar icon for a **compact horizontal bar** centered under the menu
 
 | Control | What it does |
 |--------|----------------|
-| **Brand / status** | MacStayOn **ON** / **OFF**, sleep/screensaver line, machine + AC or battery % |
-| **Primary button** | **Stay Awake** (orange) or **Restore sleep** when on — works lid open or closed |
-| **Darken display** | Black overlay while Stay Awake is on (Mac stays awake; no display sleep). Key/click restores |
-| **Heat & battery** | Toggle + *Off at* **10–50%** battery. Also turns off if macOS reports **serious heat** |
+| **Brand / status** | MacStayOn **ON** / **OFF**, short sleep line, chip + AC/battery |
+| **Primary button** | **Stay Awake** (orange) or **Restore** when on — works lid open or closed |
+| **Darken** | Black overlay while Stay Awake is on (Mac stays awake; no display sleep). Key/click restores |
+| **Heat & batt.** | Toggle + floor **10–50%** battery. Also turns off if macOS reports **serious heat** |
 | **Lid-close flash** | While On, closing the lid past ~85° pulses the screen orange until the lid is fully shut (or reopened). Needs a lid-angle sensor; skipped quietly on Macs without one. |
 | **Session** | Duration chip; expand for apps that were working and **Clear last session** |
 | **Quit** | Restores sleep settings and exits |

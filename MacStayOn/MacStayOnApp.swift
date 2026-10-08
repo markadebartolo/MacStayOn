@@ -96,14 +96,12 @@ private struct PopoverRoot: View {
                 secondaryNoteStrip
             }
         }
-        .frame(width: barWidth)
+        // Size to content so ON (longer button/session) never clips Quit;
+        // CenterTopMenuPanel recenters after the window width changes.
+        .fixedSize(horizontal: true, vertical: false)
         .background(Palette.panel.ignoresSafeArea())
-        // MenuBarExtra anchors near the status item; pin to screen-top center instead.
         .background(CenterTopMenuPanel())
     }
-
-    /// Wide short strip under the menu bar (not a tall centered card).
-    private var barWidth: CGFloat { 920 }
 
     private var showsSecondaryNote: Bool {
         if sleepManager.pendingEnableConfirm || sleepManager.pendingLidOpenChoice { return false }
@@ -115,11 +113,10 @@ private struct PopoverRoot: View {
     // MARK: Main horizontal strip
 
     private var mainStrip: some View {
-        HStack(alignment: .center, spacing: 10) {
+        HStack(alignment: .center, spacing: 8) {
             brandCluster
             thinDivider
             statusCluster
-            Spacer(minLength: 6)
             if !sleepManager.pendingEnableConfirm && !sleepManager.pendingLidOpenChoice {
                 primaryAction
             }
@@ -132,7 +129,7 @@ private struct PopoverRoot: View {
             thinDivider
             quitControl
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .frame(minHeight: 56)
     }
@@ -165,12 +162,14 @@ private struct PopoverRoot: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(Palette.text)
                 .lineLimit(1)
-            Text(powerLine)
+                .fixedSize(horizontal: true, vertical: false)
+            Text(powerLineShort)
                 .font(.system(size: 11))
                 .foregroundStyle(Palette.secondary)
                 .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
         }
-        .frame(minWidth: 140, maxWidth: 200, alignment: .leading)
+        .fixedSize()
     }
 
     private var primaryAction: some View {
@@ -183,15 +182,15 @@ private struct PopoverRoot: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: isOn ? "moon.zzz.fill" : "bolt.fill")
-                Text(isOn
-                      ? "Restore sleep"
-                      : (sleepManager.needsUserReEnable ? "Turn On again" : "Stay Awake"))
+                Text(primaryActionTitle)
                     .fontWeight(.semibold)
             }
             .font(.system(size: 13))
             .foregroundStyle(.white)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 12)
             .padding(.vertical, 8)
+            // Keep Off/On capsules the same width so the strip doesn’t jump.
+            .frame(minWidth: 128)
             .background(
                 Capsule(style: .continuous)
                     .fill(isOn ? Palette.iconFill : Palette.orange)
@@ -199,16 +198,22 @@ private struct PopoverRoot: View {
         }
         .buttonStyle(.plain)
         .keyboardShortcut(.defaultAction)
+        .help(isOn ? "Restore normal sleep & screensaver" : "Stay awake with lid open or closed")
         .fixedSize()
     }
 
+    private var primaryActionTitle: String {
+        if isOn { return "Restore" }
+        return sleepManager.needsUserReEnable ? "Turn On" : "Stay Awake"
+    }
+
     private var darkenControl: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             VStack(alignment: .leading, spacing: 1) {
-                Text("Darken display")
+                Text("Darken")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(isOn ? Palette.text : Palette.secondary)
-                Text(sleepManager.darkenDisplay ? "Black screen" : "Display lit")
+                Text(sleepManager.darkenDisplay ? "Black" : "Lit")
                     .font(.system(size: 10))
                     .foregroundStyle(Palette.secondary)
             }
@@ -230,9 +235,9 @@ private struct PopoverRoot: View {
     }
 
     private var guardControl: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             VStack(alignment: .leading, spacing: 1) {
-                Text("Heat & battery")
+                Text("Heat & batt.")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Palette.text)
                 Menu {
@@ -243,7 +248,7 @@ private struct PopoverRoot: View {
                     }
                 } label: {
                     HStack(spacing: 3) {
-                        Text("Off at \(sleepManager.batteryFloor)%")
+                        Text("≤\(sleepManager.batteryFloor)%")
                             .font(.system(size: 10, weight: .medium))
                         Image(systemName: "chevron.up.chevron.down")
                             .font(.system(size: 8, weight: .semibold))
@@ -263,7 +268,7 @@ private struct PopoverRoot: View {
             .controlSize(.mini)
         }
         .fixedSize()
-        .help("Turns Stay Awake off on low battery or serious heat.")
+        .help("Turns Stay Awake off on low battery or serious heat. Off at the chosen battery %.")
     }
 
     private var sessionChip: some View {
@@ -274,17 +279,15 @@ private struct PopoverRoot: View {
                         sessionAppsExpanded.toggle()
                     }
                 } label: {
-                    HStack(spacing: 5) {
+                    HStack(spacing: 4) {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 9, weight: .semibold))
                             .rotationEffect(.degrees(sessionAppsExpanded ? 90 : 0))
-                        Text(analytics.isLive ? "Session" : "Last")
-                            .font(.system(size: 11, weight: .semibold))
                         Text(SessionAnalytics.formatDuration(analytics.elapsed))
                             .font(.system(size: 11, weight: .bold, design: .rounded))
                             .monospacedDigit()
                         if !analytics.topApps.isEmpty {
-                            Text("· \(analytics.topApps.count)")
+                            Text("·\(analytics.topApps.count)")
                                 .font(.system(size: 10, weight: .medium))
                                 .foregroundStyle(Palette.secondary)
                         }
@@ -298,11 +301,14 @@ private struct PopoverRoot: View {
                     )
                 }
                 .buttonStyle(.plain)
+                .help(analytics.isLive ? "This session — expand for apps" : "Last session — expand for apps")
                 .fixedSize()
             } else {
-                Text("No session")
+                Text("—")
                     .font(.system(size: 11))
                     .foregroundStyle(Palette.secondary)
+                    .frame(minWidth: 28)
+                    .help("No session yet")
                     .fixedSize()
             }
         }
@@ -482,7 +488,7 @@ private struct PopoverRoot: View {
                     .lineLimit(1)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: 900, alignment: .leading)
         .padding(.horizontal, 14)
         .padding(.vertical, 6)
     }
@@ -492,9 +498,28 @@ private struct PopoverRoot: View {
     private var statusHeadline: String {
         if sleepManager.pendingEnableConfirm { return "Confirm Stay Awake" }
         if sleepManager.pendingLidOpenChoice { return "Lid opened" }
-        if !isOn { return "Normal sleep & screensaver" }
-        if sleepManager.darkenDisplay { return "Stays awake · black screen" }
-        return "Stays awake · no screensaver"
+        if !isOn { return "Normal sleep" }
+        if sleepManager.darkenDisplay { return "Awake · black" }
+        return "Awake · no screensaver"
+    }
+
+    /// Short machine + power line so the ON strip stays one tidy row.
+    private var powerLineShort: String {
+        let power: String
+        if sleepManager.onACPower {
+            power = "AC"
+        } else if let percent = sleepManager.batteryPercent {
+            power = "Batt \(percent)%"
+        } else {
+            power = "Battery"
+        }
+        let machine = sleepManager.machineLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        if machine.isEmpty { return power }
+        // Prefer chip name only (e.g. "M5 Max") when label is "MacBook Pro · M5 Max"
+        let chip = machine.split(separator: "·").map {
+            $0.trimmingCharacters(in: .whitespaces)
+        }.last ?? machine
+        return "\(chip) · \(power)"
     }
 
     private var powerLine: String {
