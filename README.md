@@ -60,17 +60,16 @@ Not sure which chip you have? Apple menu → **About This Mac** — look for **C
 
 ## The menu panel
 
-The popover matches what you see in the app — status first, then one primary action, then guards and session info.
+Click the menu-bar icon for a **compact horizontal bar** under the menu bar (not a tall card in the middle of the screen). Left to right: brand/status, primary action, Darken, Heat & battery, session, Quit. Confirms and session details expand as short strips under the bar.
 
-| Section | What it does |
+| Control | What it does |
 |--------|----------------|
-| **Header** | MacStayOn name and **ON** / **OFF** pill |
-| **Status** | *Normal sleep & screensaver* or *Stays awake · no screensaver* · machine (e.g. MacBook Pro · M5 Max) · AC or battery % |
-| **Primary button** | **Stay Awake** (orange) or **Restore normal sleep** when on — works lid open or closed |
+| **Brand / status** | MacStayOn **ON** / **OFF**, sleep/screensaver line, machine + AC or battery % |
+| **Primary button** | **Stay Awake** (orange) or **Restore sleep** when on — works lid open or closed |
 | **Darken display** | Black overlay while Stay Awake is on (Mac stays awake; no display sleep). Key/click restores |
-| **Heat & battery guard** | Toggle + *Restore normal sleep at* **10–50%** battery. Also turns off if macOS reports **serious heat**. Only while MacStayOn is on. |
+| **Heat & battery** | Toggle + *Off at* **10–50%** battery. Also turns off if macOS reports **serious heat** |
 | **Lid-close flash** | While On, closing the lid past ~85° pulses the screen orange until the lid is fully shut (or reopened). Needs a lid-angle sensor; skipped quietly on Macs without one. |
-| **This session** | Time awake (always visible). Expand to see apps that were working, timeline, and **Clear last session**. Collapsed by default. |
+| **Session** | Duration chip; expand for apps that were working and **Clear last session** |
 | **Quit** | Restores sleep settings and exits |
 
 Session data stays **on your Mac** — nothing is sent to a server.
