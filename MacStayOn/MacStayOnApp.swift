@@ -9,7 +9,8 @@ struct MacStayOnApp: App {
         MenuBarExtra {
             PopoverRoot(
                 sleepManager: appDelegate.sleepManager,
-                analytics: appDelegate.sleepManager.analytics
+                analytics: appDelegate.sleepManager.analytics,
+                launchAtLogin: appDelegate.launchAtLogin
             )
         } label: {
             MenuBarLabel(sleepManager: appDelegate.sleepManager)
@@ -20,6 +21,7 @@ struct MacStayOnApp: App {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let sleepManager = SleepAssertionManager()
+    let launchAtLogin = LaunchAtLoginController()
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         // Two copies (dist + Debug) share /tmp state and can fight the watchdog.
@@ -38,6 +40,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HardwareProfile.warmCache { [sleepManager] in
             sleepManager.refreshMachineLabel()
         }
+        // Refresh Login Items status; never auto-enables Stay Awake.
+        launchAtLogin.refresh()
+        // Off / no auto admin at login — Stay Awake only if an existing session resumes.
         sleepManager.applyPersistedStateIfNeeded()
     }
 
@@ -70,6 +75,7 @@ private struct MenuBarLabel: View {
 private struct PopoverRoot: View {
     @ObservedObject var sleepManager: SleepAssertionManager
     @ObservedObject var analytics: SessionAnalytics
+    @ObservedObject var launchAtLogin: LaunchAtLoginController
     @State private var sessionAppsExpanded = false
 
     private var isOn: Bool { sleepManager.isEnabled }
@@ -96,6 +102,7 @@ private struct PopoverRoot: View {
                 secondaryNoteStrip
             }
         }
+        .onAppear { launchAtLogin.refresh() }
         // Size to content so ON (longer button/session) never clips Quit;
         // CenterTopMenuPanel recenters after the window width changes.
         .fixedSize(horizontal: true, vertical: false)
@@ -107,6 +114,7 @@ private struct PopoverRoot: View {
         if sleepManager.pendingEnableConfirm || sleepManager.pendingLidOpenChoice { return false }
         if let err = sleepManager.lastError, !isOn { return true }
         if let note = sleepManager.foreignSleepNote, !note.isEmpty { return true }
+        if let note = launchAtLogin.statusNote, !note.isEmpty { return true }
         return false
     }
 
@@ -124,6 +132,8 @@ private struct PopoverRoot: View {
             darkenControl
             thinDivider
             guardControl
+            thinDivider
+            launchAtLoginControl
             thinDivider
             sessionChip
             thinDivider
@@ -269,6 +279,28 @@ private struct PopoverRoot: View {
         }
         .fixedSize()
         .help("Turns Stay Awake off on low battery or serious heat. Off at the chosen battery %.")
+    }
+
+    private var launchAtLoginControl: some View {
+        HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text("At login")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Palette.text)
+                Text(launchAtLogin.isEnabled ? "Open" : "Off")
+                    .font(.system(size: 10))
+                    .foregroundStyle(launchAtLogin.needsApproval ? Palette.orange : Palette.secondary)
+            }
+            Toggle("", isOn: Binding(
+                get: { launchAtLogin.isEnabled },
+                set: { launchAtLogin.setEnabled($0) }
+            ))
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+        }
+        .fixedSize()
+        .help("Open MacStayOn when you log in. Stay Awake stays Off until you turn it on.")
     }
 
     private var sessionChip: some View {
@@ -486,6 +518,12 @@ private struct PopoverRoot: View {
                     .font(.system(size: 10))
                     .foregroundStyle(Palette.secondary)
                     .lineLimit(1)
+            }
+            if let note = launchAtLogin.statusNote, !note.isEmpty {
+                Text(note)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Palette.orange)
+                    .lineLimit(2)
             }
         }
         .frame(maxWidth: 900, alignment: .leading)

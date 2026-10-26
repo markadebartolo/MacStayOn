@@ -33,6 +33,7 @@
 - **Stay Awake** — keeps the Mac awake with the lid closed or open; blocks the screensaver while on
 - **Darken display** — optional black overlay while Stay Awake is on (Mac stays awake; key/click restores)
 - **Heat & battery guard** — auto Off at a chosen battery floor (10–50%) or on serious heat
+- **Open at login** — optional Login Item (`SMAppService`); app launches Off — Stay Awake never auto-enables
 - **In-menu confirms** — heat warning and lid-open “turn off?” stay in the panel (fewer separate prompts)
 - **Session chip** — elapsed time; expand for apps that were working (local only)
 - **Touch ID admin** — Developer ID build can offer Touch ID for the one-time `pmset` approve
@@ -83,6 +84,7 @@ Click the menu-bar icon for a **compact horizontal bar** centered under the menu
 | **Primary button** | **Stay Awake** (orange) or **Restore** when on — works lid open or closed |
 | **Darken** | Black overlay while Stay Awake is on (Mac stays awake; no display sleep). Key/click restores |
 | **Heat & batt.** | Toggle + floor **10–50%** battery. Also turns off if macOS reports **serious heat** |
+| **At login** | Open MacStayOn when you log in (System Settings → Login Items). Stay Awake stays **Off** until you turn it on |
 | **Lid-close flash** | While On, closing the lid past ~85° pulses the screen orange until the lid is fully shut (or reopened). Needs a lid-angle sensor; skipped quietly on Macs without one. |
 | **Session** | Duration chip; expand for apps that were working and **Clear last session** |
 | **Quit** | Restores sleep settings and exits |
