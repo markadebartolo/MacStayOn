@@ -153,9 +153,9 @@ if [[ ${#NOTES_ARGS[@]} -eq 0 ]]; then
   NOTES_ARGS=(--notes "$DEFAULT_NOTES")
 fi
 
-echo "Creating GitHub release $TAG on $REPO…"
+echo "Creating GitHub release ${TAG} on ${REPO}..."
 if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
-  echo "Release $TAG already exists — uploading assets (clobber)…"
+  echo "Release ${TAG} already exists — uploading assets (clobber)..."
   gh release upload "$TAG" \
     "$ZIP" \
     "$APPCAST" \
@@ -175,6 +175,6 @@ echo "Done."
 echo "  Release:  https://github.com/${REPO}/releases/tag/${TAG}"
 echo "  Zip:      https://github.com/${REPO}/releases/download/${TAG}/MacStayOn-macos-arm64.zip"
 echo "  Appcast:  https://github.com/${REPO}/releases/latest/download/appcast.xml"
-echo "  Version:  $MARKETING ($BUILD)"
+echo "  Version:  ${MARKETING} (${BUILD})"
 echo
 echo "Installed 1.3.0+ apps will see this on Check for Updates / daily auto-check."
