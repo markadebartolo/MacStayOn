@@ -17,6 +17,8 @@ fi
 xcodegen generate
 mkdir -p build dist
 
+# xcodebuild build resolves SPM (Sparkle) as needed — avoid a separate
+# -resolvePackageDependencies pass, which can hang on binary artifact fetch.
 xcodebuild \
   -project MacStayOn.xcodeproj \
   -scheme MacStayOn \

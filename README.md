@@ -38,6 +38,7 @@
 - **Session chip** — elapsed time; expand for apps that were working (local only)
 - **Touch ID admin** — Developer ID build can offer Touch ID for the one-time `pmset` approve
 - **Bag-safe Off** — Off / Quit always restore normal lid sleep (`SleepDisabled=0`)
+- **In-app updates** — **Updates** in the menu panel (Sparkle + GitHub Releases appcast); quiet daily check
 - **Menu bar only** — no Dock icon, no extra windows
 
 ---
@@ -87,6 +88,7 @@ Click the menu-bar icon for a **compact horizontal bar** centered under the menu
 | **At login** | Open MacStayOn when you log in (System Settings → Login Items). Stay Awake stays **Off** until you turn it on |
 | **Lid-close flash** | While On, closing the lid past ~85° pulses the screen orange until the lid is fully shut (or reopened). Needs a lid-angle sensor; skipped quietly on Macs without one. |
 | **Session** | Duration chip; expand for apps that were working and **Clear last session** |
+| **Updates** | **Check for Updates…** — downloads/installs from GitHub Releases when a newer build exists (turns into **Update x.y.z** if one is waiting) |
 | **Quit** | Restores sleep settings and exits |
 
 Session data stays **on your Mac** — nothing is sent to a server.
@@ -117,7 +119,10 @@ open dist/MacStayOn.app
 
 Open in Xcode: `xcodegen generate && open MacStayOn.xcodeproj`
 
-**Sign & notarize** (for your own Developer ID): see **[docs/DISTRIBUTE-MAC.md](docs/DISTRIBUTE-MAC.md)**.
+**Sign, notarize, and publish updates** (Developer ID + Sparkle appcast): see **[docs/DISTRIBUTE-MAC.md](docs/DISTRIBUTE-MAC.md)**.
+
+Update feed (installed apps):  
+`https://github.com/markadebartolo/MacStayOn/releases/latest/download/appcast.xml`
 
 ---
 

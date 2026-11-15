@@ -44,6 +44,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         launchAtLogin.refresh()
         // Off / no auto admin at login — Stay Awake only if an existing session resumes.
         sleepManager.applyPersistedStateIfNeeded()
+        // Sparkle daily check (Release only); menu “Check for Updates…” always available.
+        SparkleUpdateController.startIfConfigured()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -76,6 +78,7 @@ private struct PopoverRoot: View {
     @ObservedObject var sleepManager: SleepAssertionManager
     @ObservedObject var analytics: SessionAnalytics
     @ObservedObject var launchAtLogin: LaunchAtLoginController
+    @ObservedObject private var updateReminders = SparkleUpdateReminderStore.shared
     @State private var sessionAppsExpanded = false
 
     private var isOn: Bool { sleepManager.isEnabled }
@@ -136,6 +139,8 @@ private struct PopoverRoot: View {
             launchAtLoginControl
             thinDivider
             sessionChip
+            thinDivider
+            updateControl
             thinDivider
             quitControl
         }
@@ -344,6 +349,48 @@ private struct PopoverRoot: View {
                     .fixedSize()
             }
         }
+    }
+
+    private var updateControl: some View {
+        Button {
+            SparkleUpdateController.checkForUpdates()
+        } label: {
+            if let pending = updateReminders.pendingUpdateDisplayVersion {
+                HStack(spacing: 5) {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                    Text("Update \(pending)")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(
+                    Capsule(style: .continuous).fill(Palette.orange)
+                )
+            } else {
+                HStack(spacing: 5) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 11, weight: .semibold))
+                    Text("Updates")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundStyle(Palette.secondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(
+                    Capsule(style: .continuous).fill(Palette.chip)
+                )
+            }
+        }
+        .buttonStyle(.plain)
+        .help(updateReminders.pendingUpdateDisplayVersion == nil
+              ? "Check for Updates…"
+              : "Install the available MacStayOn update")
+        .fixedSize()
+        .accessibilityLabel(updateReminders.pendingUpdateDisplayVersion == nil
+                            ? "Check for Updates"
+                            : "Update MacStayOn")
     }
 
     private var quitControl: some View {

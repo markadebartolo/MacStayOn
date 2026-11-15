@@ -26,5 +26,20 @@
 	<string>Copyright © 2026 Mark DeBartolo</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<!-- Sparkle: public GitHub Releases appcast (uploaded with each notarized release). -->
+	<key>SUFeedURL</key>
+	<string>https://github.com/markadebartolo/MacStayOn/releases/latest/download/appcast.xml</string>
+	<!-- Public EdDSA key from scripts/generate-sparkle-keys.sh — private key stays in Keychain. -->
+	<key>SUPublicEDKey</key>
+	<string>KsDaXddxWo+iY0HLLe1tHic6dR6WvC+TPjTahrxxLjg=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<!-- Daily background check; user confirms install via Sparkle UI / menu Update chip. -->
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
+	<key>SUAllowsAutomaticUpdates</key>
+	<false/>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
 </dict>
 </plist>
