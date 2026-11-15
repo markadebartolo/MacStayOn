@@ -50,6 +50,10 @@ final class SleepAssertionManager: ObservableObject {
     @Published private(set) var lidOpenSessionDuration: String = ""
 
     private var guardTimer: Timer?
+    /// Serial queue for pmset/ps — never block the menu-bar main thread (hang sample MSO-7).
+    private let guardQueue = DispatchQueue(label: "com.markdebartolo.MacStayOn.guard", qos: .utility)
+    /// Skip timer ticks while a prior guard pass is still running (pmset can stall).
+    private var isGuardEvalRunning = false
     private var guardTripping = false
     /// Prevents re-entrant admin prompts while forcing SleepDisabled back to 0.
     private var isReconcilingSleep = false
@@ -230,14 +234,14 @@ final class SleepAssertionManager: ObservableObject {
     func setGuardEnabled(_ enabled: Bool) {
         guardEnabled = enabled
         UserDefaults.standard.set(enabled, forKey: Self.guardEnabledKey)
-        evaluateGuard()
+        scheduleEvaluateGuard()
     }
 
     func setBatteryFloor(_ percent: Int) {
         let clamped = Self.clampFloor(percent)
         batteryFloor = clamped
         UserDefaults.standard.set(clamped, forKey: Self.batteryFloorKey)
-        evaluateGuard()
+        scheduleEvaluateGuard()
     }
 
     private static func clampFloor(_ percent: Int) -> Int {
@@ -803,21 +807,14 @@ final class SleepAssertionManager: ObservableObject {
     }
 
     private static func processArguments(pid: Int32) -> String? {
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/bin/ps")
-        proc.arguments = ["-p", String(pid), "-o", "args="]
-        let out = Pipe()
-        proc.standardOutput = out
-        proc.standardError = Pipe()
-        do {
-            try proc.run()
-            proc.waitUntilExit()
-        } catch {
+        guard let result = runProcess(
+            executable: "/bin/ps",
+            arguments: ["-p", String(pid), "-o", "args="],
+            timeout: 2
+        ), result.status == 0 else {
             return nil
         }
-        guard proc.terminationStatus == 0 else { return nil }
-        let data = out.fileHandleForReading.readDataToEndOfFile()
-        return String(data: data, encoding: .utf8)?
+        return String(data: result.stdout, encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
@@ -1075,36 +1072,68 @@ final class SleepAssertionManager: ObservableObject {
     private func startGuardMonitor() {
         guardTimer?.invalidate()
         // Check often enough that a stuck SleepDisabled while Off cannot linger in a bag.
+        // Work runs on guardQueue: a hung `pmset` must not rainbow-wheel the menu bar.
         let timer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
-            self?.evaluateGuard()
+            self?.scheduleEvaluateGuard()
         }
         RunLoop.main.add(timer, forMode: .common)
         guardTimer = timer
-        evaluateGuard()
+        scheduleEvaluateGuard()
+    }
+
+    private func scheduleEvaluateGuard() {
+        guardQueue.async { [weak self] in
+            guard let self else { return }
+            if self.isGuardEvalRunning { return }
+            self.isGuardEvalRunning = true
+            defer { self.isGuardEvalRunning = false }
+
+            // Shell-outs stay off the main thread and are hard-capped (see runProcess).
+            let snapshot = Self.powerSnapshot()
+            let thermal = ProcessInfo.processInfo.thermalState
+            let sleepDisabled = self.readSleepDisabled()
+            let watchdogAlive = self.isWatchdogProcessAlive()
+            let foreignNote = Self.foreignSleepHoldersNote()
+
+            DispatchQueue.main.async {
+                self.applyGuardEvaluation(
+                    snapshot: snapshot,
+                    thermal: thermal,
+                    sleepDisabled: sleepDisabled,
+                    watchdogAlive: watchdogAlive,
+                    foreignNote: foreignNote
+                )
+            }
+        }
     }
 
     /// While Stay Awake is on, turn it off if the battery is at or below the floor
     /// (on battery only) or the Mac reports serious/critical thermal pressure.
     /// While Off, force SleepDisabled back to 0 if it ever sticks.
-    private func evaluateGuard() {
-        let snapshot = Self.powerSnapshot()
+    /// Main-thread only — Process I/O already finished on `guardQueue`.
+    private func applyGuardEvaluation(
+        snapshot: PowerSnapshot,
+        thermal: ProcessInfo.ThermalState,
+        sleepDisabled: Int?,
+        watchdogAlive: Bool,
+        foreignNote: String?
+    ) {
         onACPower = snapshot.onAC
         batteryPercent = snapshot.percent
-        let thermal = ProcessInfo.processInfo.thermalState
         switch thermal {
         case .critical: thermalLabel = "critical heat"
         case .serious: thermalLabel = "serious heat"
         case .fair: thermalLabel = "warm"
         default: thermalLabel = "cool"
         }
+        foreignSleepNote = foreignNote
 
         // While enabled (lid open or closed), keep screensaver/display assertions alive.
         if isEnabled {
             ensureAssertionsHeld()
-            let sleepDisabled = readSleepDisabled()
             // Watchdog died while On → SleepDisabled can stick after quit. Force Off + restore.
             // Also trip when pmset is unreadable and the watchdog is gone (fail closed).
-            if !isWatchdogProcessAlive(), sleepDisabled != 0 {
+            if !watchdogAlive, sleepDisabled != 0 {
                 tripGuard("Turned off — sleep watchdog stopped. Normal lid sleep was restored for safety.")
                 return
             }
@@ -1122,18 +1151,16 @@ final class SleepAssertionManager: ObservableObject {
         } else if !isActivating {
             // Off must obey the user setting: never leave system sleep disabled.
             // nil (unreadable) is treated as unsafe inside ensureNormalSleepWhileOff.
+            // Re-read on main so admin restore sees current state (timed; won't hang forever).
             if readSleepDisabled() != 0 {
                 _ = ensureNormalSleepWhileOff(promptAdminIfNeeded: true)
             } else {
                 endStuckSleepActivity()
                 isSleepStuckWhileOff = false
             }
-            refreshForeignSleepNote()
             refreshStatusDetail()
             return
         }
-
-        refreshForeignSleepNote()
 
         guard isEnabled, guardEnabled, !guardTripping else { return }
 
@@ -1201,46 +1228,37 @@ final class SleepAssertionManager: ObservableObject {
     }
 
     private static func parseSleepDisabled(arguments: [String]) -> Int? {
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/bin/pmset")
-        proc.arguments = arguments
-        let out = Pipe()
-        proc.standardOutput = out
-        proc.standardError = Pipe()
-        do {
-            try proc.run()
-            proc.waitUntilExit()
-            guard proc.terminationStatus == 0 else { return nil }
-            let data = out.fileHandleForReading.readDataToEndOfFile()
-            let text = String(data: data, encoding: .utf8) ?? ""
-            for line in text.split(separator: "\n") {
-                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                let parts = trimmed.split(whereSeparator: { $0.isWhitespace })
-                guard parts.count >= 2 else { continue }
-                let key = parts[0].lowercased()
-                if key == "disablesleep" || key == "sleepdisabled", let v = Int(parts[1]) {
-                    return v
-                }
+        guard let result = runProcess(
+            executable: "/usr/bin/pmset",
+            arguments: arguments,
+            timeout: 2
+        ), result.status == 0 else {
+            return nil
+        }
+        let text = String(data: result.stdout, encoding: .utf8) ?? ""
+        for line in text.split(separator: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            let parts = trimmed.split(whereSeparator: { $0.isWhitespace })
+            guard parts.count >= 2 else { continue }
+            let key = parts[0].lowercased()
+            if key == "disablesleep" || key == "sleepdisabled", let v = Int(parts[1]) {
+                return v
             }
-        } catch {}
+        }
         return nil
     }
 
     /// Surface non-MacStayOn assertions so “Off but still awake” isn’t blamed on us.
-    private func refreshForeignSleepNote() {
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/bin/pmset")
-        proc.arguments = ["-g", "assertions"]
-        let out = Pipe()
-        proc.standardOutput = out
-        proc.standardError = Pipe()
-        do {
-            try proc.run()
-            proc.waitUntilExit()
-        } catch {
-            return
+    /// Safe off the main thread (timed `pmset`).
+    private static func foreignSleepHoldersNote() -> String? {
+        guard let result = runProcess(
+            executable: "/usr/bin/pmset",
+            arguments: ["-g", "assertions"],
+            timeout: 2
+        ), result.status == 0 else {
+            return nil
         }
-        let text = String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let text = String(data: result.stdout, encoding: .utf8) ?? ""
         let myPID = ProcessInfo.processInfo.processIdentifier
         var holders: [String] = []
         for line in text.split(separator: "\n") {
@@ -1266,12 +1284,43 @@ final class SleepAssertionManager: ObservableObject {
                 }
             }
         }
-        if holders.isEmpty {
-            foreignSleepNote = nil
-        } else {
-            let listed = holders.prefix(3).joined(separator: ", ")
-            foreignSleepNote = "Also preventing idle sleep (not MacStayOn): \(listed)"
+        if holders.isEmpty { return nil }
+        let listed = holders.prefix(3).joined(separator: ", ")
+        return "Also preventing idle sleep (not MacStayOn): \(listed)"
+    }
+
+    /// Run a short helper with a hard timeout. A hung `pmset` previously froze
+    /// the menu bar forever via `waitUntilExit` on the main RunLoop (MSO-7).
+    private static func runProcess(
+        executable: String,
+        arguments: [String],
+        timeout: TimeInterval
+    ) -> (status: Int32, stdout: Data)? {
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: executable)
+        proc.arguments = arguments
+        let out = Pipe()
+        proc.standardOutput = out
+        proc.standardError = Pipe()
+        do {
+            try proc.run()
+        } catch {
+            return nil
         }
+
+        let group = DispatchGroup()
+        group.enter()
+        DispatchQueue.global(qos: .utility).async {
+            proc.waitUntilExit()
+            group.leave()
+        }
+        if group.wait(timeout: .now() + timeout) == .timedOut {
+            proc.terminate()
+            _ = group.wait(timeout: .now() + 1)
+            return nil
+        }
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        return (proc.terminationStatus, data)
     }
 
     // MARK: - Admin command
