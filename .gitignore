@@ -29,3 +29,13 @@ chrome-profile/
 *.mobileprovision
 .env
 .env.*
+
+# Sparkle EdDSA private key exports (public key lives in Info.plist)
+*.ed25519
+*sparkle*private*
+*sparkle*eddsa*.key
+dist/sparkle-staging/
+
+# Generated at publish time; the live feed is the release asset
+# https://github.com/markadebartolo/MacStayOn/releases/latest/download/appcast.xml
+/appcast.xml

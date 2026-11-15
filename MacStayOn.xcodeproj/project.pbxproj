@@ -10,6 +10,7 @@
 		38FE80004493B705CE5D32CF /* CenterTopMenuPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80DF207C4E039C39F29FEA7B /* CenterTopMenuPanel.swift */; };
 		3CF36D329C07A54648C4299E /* SleepAssertionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C829051A9A4218DD77F2C32C /* SleepAssertionManager.swift */; };
 		40AA5D4EAB30AA2E55B52318 /* SingleInstance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 111C9A1D39FAD52F166C817B /* SingleInstance.swift */; };
+		507C0DD7BD2F86D35BE9E3F2 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = D3F0E55EB16B95A6530486F1 /* Sparkle */; };
 		541567C97E61A0C6862FF6D1 /* LidMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE3FEBA7898EB6C7BE896A9 /* LidMonitor.swift */; };
 		7C340361E5950D9982E45146 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DD81DF72ADB6F9916C297486 /* Assets.xcassets */; };
 		7DF07DAB6995A0E7A56D2F13 /* MacStayOnApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1286037094980442A8B90FA /* MacStayOnApp.swift */; };
@@ -20,6 +21,7 @@
 		F829DE180E0AEF1C4949D1BD /* DisplayDarkenOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B184CC33D848ECAD058D8DB /* DisplayDarkenOverlay.swift */; };
 		F92B6F7B687EB64657117621 /* HardwareProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27B3C8D004F277239D200C6C /* HardwareProfile.swift */; };
 		FE32EDAF8A7800965EBF4CCC /* SessionAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29FE82A6B2D548C210FA377A /* SessionAnalytics.swift */; };
+		FFEA2E189444E13CB0E9CB60 /* SparkleUpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C4A71BAB6D3D1020EEB6AFC /* SparkleUpdateController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -30,6 +32,7 @@
 		27B3C8D004F277239D200C6C /* HardwareProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareProfile.swift; sourceTree = "<group>"; };
 		29FE82A6B2D548C210FA377A /* SessionAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionAnalytics.swift; sourceTree = "<group>"; };
 		2D114C7D8FD0580CC98FE07A /* ScreenFlashAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenFlashAlert.swift; sourceTree = "<group>"; };
+		3C4A71BAB6D3D1020EEB6AFC /* SparkleUpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdateController.swift; sourceTree = "<group>"; };
 		55BE46A98A53AE3C8EB2853F /* SleepSafetyResources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepSafetyResources.swift; sourceTree = "<group>"; };
 		5D5B0E6326B2762E8D6D6FBC /* MacStayOn.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MacStayOn.entitlements; sourceTree = "<group>"; };
 		5E1252DC44B29CF94F5812E2 /* LaunchAtLogin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLogin.swift; sourceTree = "<group>"; };
@@ -41,6 +44,17 @@
 		DD81DF72ADB6F9916C297486 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		EF158FFE4308ECB5751ADE98 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		76FE4F3A456538D6AC72ED84 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				507C0DD7BD2F86D35BE9E3F2 /* Sparkle in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		0D022B2758C5ED1A35615AF5 /* MacStayOn */ = {
@@ -62,6 +76,7 @@
 				111C9A1D39FAD52F166C817B /* SingleInstance.swift */,
 				C829051A9A4218DD77F2C32C /* SleepAssertionManager.swift */,
 				55BE46A98A53AE3C8EB2853F /* SleepSafetyResources.swift */,
+				3C4A71BAB6D3D1020EEB6AFC /* SparkleUpdateController.swift */,
 			);
 			path = MacStayOn;
 			sourceTree = "<group>";
@@ -91,6 +106,7 @@
 			buildPhases = (
 				B61544B7A7AC92CE02444CBC /* Sources */,
 				5A25A87E0FE0A2784FADE648 /* Resources */,
+				76FE4F3A456538D6AC72ED84 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -98,6 +114,7 @@
 			);
 			name = MacStayOn;
 			packageProductDependencies = (
+				D3F0E55EB16B95A6530486F1 /* Sparkle */,
 			);
 			productName = MacStayOn;
 			productReference = 25AB80C519C1F0D8850950B5 /* MacStayOn.app */;
@@ -127,6 +144,9 @@
 			);
 			mainGroup = E638FC0270815477E44C833E;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				18E98B024584C44111281F6E /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 3147F13761AAF3B3D02F1BB8 /* Products */;
 			projectDirPath = "";
@@ -165,6 +185,7 @@
 				40AA5D4EAB30AA2E55B52318 /* SingleInstance.swift in Sources */,
 				3CF36D329C07A54648C4299E /* SleepAssertionManager.swift in Sources */,
 				994BC54195A08448F33476C1 /* SleepSafetyResources.swift in Sources */,
+				FFEA2E189444E13CB0E9CB60 /* SparkleUpdateController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -177,7 +198,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = MacStayOn/MacStayOn.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 23;
+				CURRENT_PROJECT_VERSION = 24;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MacStayOn/Info.plist;
@@ -185,7 +206,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.2.8;
+				MARKETING_VERSION = 1.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.markdebartolo.MacStayOn;
 				PRODUCT_NAME = MacStayOn;
 				SDKROOT = macosx;
@@ -267,7 +288,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = MacStayOn/MacStayOn.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 23;
+				CURRENT_PROJECT_VERSION = 24;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MacStayOn/Info.plist;
@@ -275,7 +296,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.2.8;
+				MARKETING_VERSION = 1.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.markdebartolo.MacStayOn;
 				PRODUCT_NAME = MacStayOn;
 				SDKROOT = macosx;
@@ -366,6 +387,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		18E98B024584C44111281F6E /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.6.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		D3F0E55EB16B95A6530486F1 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 18E98B024584C44111281F6E /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 69C38F75688C82FB6C75F22F /* Project object */;
 }
