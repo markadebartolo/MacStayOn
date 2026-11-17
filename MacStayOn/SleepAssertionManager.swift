@@ -332,7 +332,7 @@ final class SleepAssertionManager: ObservableObject {
         // immediately — Turn On then reports watchdog_failed even after approval.
         let watchdogPython = """
         #!/usr/bin/env python3
-        import errno, os, signal, subprocess, sys, time
+        import errno, os, shutil, signal, subprocess, sys, time
 
         state = sys.argv[1]
         app_pid = int(sys.argv[2])
@@ -426,6 +426,20 @@ final class SleepAssertionManager: ObservableObject {
 
         rc = subprocess.call(["/usr/bin/pmset", "-a", "disablesleep", "0"])
         log("pmset restore rc=%s" % rc)
+        # Off complete — drop the SIGKILL safety LaunchDaemon so it cannot linger
+        # as durable root state after Stay Awake is Off.
+        label = "com.markdebartolo.MacStayOn.sleep-safety"
+        subprocess.call(["/bin/launchctl", "bootout", "system/" + label],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        for path in (
+            "/Library/LaunchDaemons/" + label + ".plist",
+        ):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+        shutil.rmtree("/Library/Application Support/MacStayOn", ignore_errors=True)
+        log("sleep-safety LaunchDaemon uninstalled after Off restore")
         for p in (sentinel, prev, pid_file, ready_file):
             try:
                 os.remove(p)
@@ -508,6 +522,8 @@ final class SleepAssertionManager: ObservableObject {
         # FATAL: never leave SleepDisabled=1 if the watchdog did not stay up —
         # UI would show Off while the Mac stays awake in a bag.
         /usr/bin/pmset -a disablesleep 0 || true
+        # Partial Turn On must not leave the SIGKILL safety daemon either.
+        \(SleepSafetyResources.uninstallShell)
         echo "watchdog_failed" >&2
         exit 1
         """
@@ -745,11 +761,31 @@ final class SleepAssertionManager: ObservableObject {
 
     /// Restores normal lid sleep via admin auth.
     /// Always writes `disablesleep 0` — never re-apply a stuck SleepDisabled=1 as "previous".
+    /// Also uninstalls the sleep-safety LaunchDaemon so Off leaves no durable root leftovers.
     @discardableResult
     private func restoreDisablesleepWithAdmin(preferringSavedPrev: Bool) -> Bool {
         _ = preferringSavedPrev // retained for call-site clarity; value is ignored on purpose.
-        switch Self.runAdminCommand("/usr/bin/pmset", arguments: ["-a", "disablesleep", "0"]) {
+        let restoreAndUninstall = """
+        #!/bin/bash
+        set -euo pipefail
+        /usr/bin/pmset -a disablesleep 0
+        \(SleepSafetyResources.uninstallShell)
+        """
+        let scriptURL = stateDir.appendingPathComponent("restore-sleep.sh")
+        do {
+            try FileManager.default.createDirectory(at: stateDir, withIntermediateDirectories: true)
+            try restoreAndUninstall.write(to: scriptURL, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o755],
+                ofItemAtPath: scriptURL.path
+            )
+        } catch {
+            lastError = "Could not prepare sleep restore script."
+            return false
+        }
+        switch Self.runAdminCommand("/bin/bash", arguments: [scriptURL.path]) {
         case .success:
+            try? FileManager.default.removeItem(at: scriptURL)
             return readSleepDisabled() == 0
         case .cancelled:
             lastError = "Admin canceled — sleep may still be disabled. Turn Off again to restore lid sleep."

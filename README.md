@@ -37,7 +37,7 @@
 - **In-menu confirms** — heat warning and lid-open “turn off?” stay in the panel (fewer separate prompts)
 - **Session chip** — elapsed time; expand for apps that were working (local only)
 - **Touch ID admin** — Developer ID build can offer Touch ID for the one-time `pmset` approve
-- **Bag-safe Off** — Off / Quit always restore normal lid sleep (`SleepDisabled=0`)
+- **Bag-safe Off** — Off / Quit always restore normal lid sleep (`SleepDisabled=0`) and remove the sleep-safety LaunchDaemon so nothing durable keeps the Mac force-awake
 - **In-app updates** — **Updates** in the menu panel (Sparkle + GitHub Releases appcast); quiet daily check
 - **Menu bar only** — no Dock icon, no extra windows
 
@@ -99,8 +99,8 @@ Session data stays **on your Mac** — nothing is sent to a server.
 
 | When you turn **On** | When you turn **Off** or **Quit** |
 |----------------------|-----------------------------------|
-| `pmset disablesleep` (**admin once** — Touch ID when offered) + IOKit stay-awake + **no screensaver** | A root watchdog restores normal lid sleep — **no password** in the usual case |
-| Works on **battery** without a monitor | If the watchdog was killed, Off asks for admin to clear stuck sleep — **Off never leaves SleepDisabled on** (bag-safety) |
+| `pmset disablesleep` (**admin once** — Touch ID when offered) + IOKit stay-awake + **no screensaver** + sleep-safety LaunchDaemon (SIGKILL net) | A root watchdog restores normal lid sleep and uninstalls that daemon — **no password** in the usual case |
+| Works on **battery** without a monitor | If the watchdog was killed, Off asks for admin to clear stuck sleep — **Off never leaves SleepDisabled on** or a leftover force-awake daemon (bag-safety) |
 
 `PreventSystemSleep` alone is not enough on battery; MacStayOn uses the same approach power users rely on for closed-lid work.
 
