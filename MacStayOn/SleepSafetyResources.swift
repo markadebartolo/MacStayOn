@@ -105,13 +105,35 @@ enum SleepSafetyResources {
     /bin/rm -rf "/Library/Application Support/MacStayOn"
     """
 
+    /// Stages the daemon files for the root enable script to copy into /Library.
+    /// The shared /tmp state dir can be left missing or root-owned by an earlier
+    /// session, so fall back to a fresh per-user temp dir (root can read either).
     static func writeStagingFiles(to directory: URL) throws -> (script: URL, plist: URL) {
+        do {
+            return try writeStagingFilesOrThrow(to: directory)
+        } catch let primaryError {
+            let fallbackDirectory = FileManager.default.temporaryDirectory
+                .appendingPathComponent("MacStayOn-staging-\(UUID().uuidString)", isDirectory: true)
+            do {
+                return try writeStagingFilesOrThrow(to: fallbackDirectory)
+            } catch {
+                throw primaryError
+            }
+        }
+    }
+
+    private static func writeStagingFilesOrThrow(to directory: URL) throws -> (script: URL, plist: URL) {
+        let fileManager = FileManager.default
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         let scriptURL = directory.appendingPathComponent(scriptName)
         let plistURL = directory.appendingPathComponent(plistName)
-        try script.write(to: scriptURL, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
-        try plist.write(to: plistURL, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: plistURL.path)
+        for staleURL in [scriptURL, plistURL] {
+            try? fileManager.removeItem(at: staleURL)
+        }
+        try Data(script.utf8).write(to: scriptURL)
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
+        try Data(plist.utf8).write(to: plistURL)
+        try fileManager.setAttributes([.posixPermissions: 0o644], ofItemAtPath: plistURL.path)
         return (scriptURL, plistURL)
     }
 }

@@ -454,7 +454,7 @@ final class SleepAssertionManager: ObservableObject {
             stagedSafety = try SleepSafetyResources.writeStagingFiles(to: stateDir)
         } catch {
             isEnabled = false
-            lastError = "Could not prepare sleep-safety files — stayed Off."
+            lastError = "Could not prepare sleep-safety files — stayed Off. (\(error.localizedDescription))"
             UserDefaults.standard.set(false, forKey: Self.defaultsKey)
             _ = ensureNormalSleepWhileOff(promptAdminIfNeeded: true)
             refreshStatusDetail()
@@ -528,6 +528,9 @@ final class SleepAssertionManager: ObservableObject {
         exit 1
         """
         do {
+            // A previous root session can leave root-owned copies behind; drop them first.
+            try? FileManager.default.removeItem(at: watchdogPythonFile)
+            try? FileManager.default.removeItem(at: enableScriptFile)
             try watchdogPython.write(to: watchdogPythonFile, atomically: true, encoding: .utf8)
             try FileManager.default.setAttributes(
                 [.posixPermissions: 0o755],
@@ -540,7 +543,7 @@ final class SleepAssertionManager: ObservableObject {
             )
         } catch {
             isEnabled = false
-            lastError = "Could not prepare enable script — stayed Off."
+            lastError = "Could not prepare enable script — stayed Off. (\(error.localizedDescription))"
             UserDefaults.standard.set(false, forKey: Self.defaultsKey)
             _ = ensureNormalSleepWhileOff(promptAdminIfNeeded: true)
             refreshStatusDetail()
