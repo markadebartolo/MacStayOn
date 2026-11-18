@@ -332,7 +332,7 @@ final class SleepAssertionManager: ObservableObject {
         // immediately — Turn On then reports watchdog_failed even after approval.
         let watchdogPython = """
         #!/usr/bin/env python3
-        import errno, os, signal, subprocess, sys, time
+        import errno, os, shutil, signal, subprocess, sys, time
 
         state = sys.argv[1]
         app_pid = int(sys.argv[2])
@@ -426,6 +426,20 @@ final class SleepAssertionManager: ObservableObject {
 
         rc = subprocess.call(["/usr/bin/pmset", "-a", "disablesleep", "0"])
         log("pmset restore rc=%s" % rc)
+        # Off complete — drop the SIGKILL safety LaunchDaemon so it cannot linger
+        # as durable root state after Stay Awake is Off.
+        label = "com.markdebartolo.MacStayOn.sleep-safety"
+        subprocess.call(["/bin/launchctl", "bootout", "system/" + label],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        for path in (
+            "/Library/LaunchDaemons/" + label + ".plist",
+        ):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+        shutil.rmtree("/Library/Application Support/MacStayOn", ignore_errors=True)
+        log("sleep-safety LaunchDaemon uninstalled after Off restore")
         for p in (sentinel, prev, pid_file, ready_file):
             try:
                 os.remove(p)
@@ -508,6 +522,8 @@ final class SleepAssertionManager: ObservableObject {
         # FATAL: never leave SleepDisabled=1 if the watchdog did not stay up —
         # UI would show Off while the Mac stays awake in a bag.
         /usr/bin/pmset -a disablesleep 0 || true
+        # Partial Turn On must not leave the SIGKILL safety daemon either.
+        \(SleepSafetyResources.uninstallShell)
         echo "watchdog_failed" >&2
         exit 1
         """
@@ -615,15 +631,12 @@ final class SleepAssertionManager: ObservableObject {
             if !isWatchdogProcessAlive() {
                 cleanupStateFiles()
             }
-            endStuckSleepActivity()
-            isSleepStuckWhileOff = false
-            didPresentCriticalAlertForStuckEpisode = false
+            clearCriticalSleepStuckUI()
             return true
         }
         // Unreadable pmset with no Stay Awake artifacts → do not spam admin.
         if readSleepDisabled() == nil, !hasStayAwakeStateArtifacts() {
-            endStuckSleepActivity()
-            isSleepStuckWhileOff = false
+            clearCriticalSleepStuckUI()
             return true
         }
         // 1, or nil with our state files still present — unsafe until we confirm 0.
@@ -638,9 +651,7 @@ final class SleepAssertionManager: ObservableObject {
         let wait = isWatchdogProcessAlive() ? 3.0 : 1.6
         if waitForSleepDisabledClear(timeout: wait) {
             cleanupStateFiles()
-            endStuckSleepActivity()
-            isSleepStuckWhileOff = false
-            didPresentCriticalAlertForStuckEpisode = false
+            clearCriticalSleepStuckUI()
             return true
         }
 
@@ -667,18 +678,31 @@ final class SleepAssertionManager: ObservableObject {
         lastSleepReconcileAdminAt = Date()
 
         let restored = restoreDisablesleepWithAdmin(preferringSavedPrev: true)
+        // Admin script success is authoritative — a flaky follow-up pmset read must not
+        // leave CRITICAL sticky after Touch ID already cleared SleepDisabled.
         if restored || readSleepDisabled() == 0 {
             cleanupStateFiles()
-            endStuckSleepActivity()
-            isSleepStuckWhileOff = false
-            didPresentCriticalAlertForStuckEpisode = false
-            lastError = nil
+            clearCriticalSleepStuckUI()
             lastSleepReconcileAdminAt = nil
             return true
         }
 
         refreshStatusDetail()
         return false
+    }
+
+    /// Drop CRITICAL / stuck-Off UI once lid sleep is normal (or confirmed restored).
+    /// Previously `lastError` stayed forever after SleepDisabled returned to 0, so the
+    /// menu kept screaming bag-risk while the Mac was already safe.
+    private func clearCriticalSleepStuckUI() {
+        endStuckSleepActivity()
+        isSleepStuckWhileOff = false
+        didPresentCriticalAlertForStuckEpisode = false
+        if let err = lastError, err.localizedCaseInsensitiveContains("CRITICAL")
+            || err.localizedCaseInsensitiveContains("lid sleep")
+            || err.localizedCaseInsensitiveContains("SleepDisabled") {
+            lastError = nil
+        }
     }
 
     private func presentCriticalSleepAlert() {
@@ -697,37 +721,36 @@ final class SleepAssertionManager: ObservableObject {
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {
             lastSleepReconcileAdminAt = nil
-            _ = restoreDisablesleepWithAdmin(preferringSavedPrev: true)
-            if readSleepDisabled() == 0 {
+            let restored = restoreDisablesleepWithAdmin(preferringSavedPrev: true)
+            if restored || readSleepDisabled() == 0 {
                 cleanupStateFiles()
-                endStuckSleepActivity()
-                isSleepStuckWhileOff = false
-                didPresentCriticalAlertForStuckEpisode = false
-                lastError = nil
+                clearCriticalSleepStuckUI()
             }
         }
     }
 
-    /// Poll SleepDisabled without freezing the menu bar for seconds (`Thread.sleep` on main).
+    /// Poll SleepDisabled. Never busy-waits with blocking `pmset` on the main thread —
+    /// that froze the menu bar (MSO-7 recurrence) while Off tried to reconcile.
     @discardableResult
     private func waitForSleepDisabledClear(timeout: TimeInterval) -> Bool {
+        // Main thread: one non-blocking check only. Watchdog / next guard tick finish the wait.
+        if Thread.isMainThread {
+            return readSleepDisabled() == 0
+        }
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if readSleepDisabled() == 0 { return true }
-            if Thread.isMainThread {
-                _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.12))
-            } else {
-                Thread.sleep(forTimeInterval: 0.12)
-            }
+            Thread.sleep(forTimeInterval: 0.12)
         }
         return readSleepDisabled() == 0
     }
 
     private func beginStuckSleepActivity() {
         guard stuckSleepActivity == nil else { return }
+        // Do NOT set idleSystemSleepDisabled — that kept the Mac awake in a bag while
+        // Off was stuck in CRITICAL limbo. userInitiated is enough to resist App Nap.
         stuckSleepActivity = ProcessInfo.processInfo.beginActivity(
             options: [
-                .idleSystemSleepDisabled,
                 .suddenTerminationDisabled,
                 .automaticTerminationDisabled,
                 .userInitiated,
@@ -745,12 +768,36 @@ final class SleepAssertionManager: ObservableObject {
 
     /// Restores normal lid sleep via admin auth.
     /// Always writes `disablesleep 0` — never re-apply a stuck SleepDisabled=1 as "previous".
+    /// Also uninstalls the sleep-safety LaunchDaemon so Off leaves no durable root leftovers.
     @discardableResult
     private func restoreDisablesleepWithAdmin(preferringSavedPrev: Bool) -> Bool {
         _ = preferringSavedPrev // retained for call-site clarity; value is ignored on purpose.
-        switch Self.runAdminCommand("/usr/bin/pmset", arguments: ["-a", "disablesleep", "0"]) {
+        let restoreAndUninstall = """
+        #!/bin/bash
+        set -euo pipefail
+        /usr/bin/pmset -a disablesleep 0
+        \(SleepSafetyResources.uninstallShell)
+        """
+        let scriptURL = stateDir.appendingPathComponent("restore-sleep.sh")
+        do {
+            try FileManager.default.createDirectory(at: stateDir, withIntermediateDirectories: true)
+            try restoreAndUninstall.write(to: scriptURL, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o755],
+                ofItemAtPath: scriptURL.path
+            )
+        } catch {
+            lastError = "Could not prepare sleep restore script."
+            return false
+        }
+        switch Self.runAdminCommand("/bin/bash", arguments: [scriptURL.path]) {
         case .success:
-            return readSleepDisabled() == 0
+            try? FileManager.default.removeItem(at: scriptURL)
+            // Script ran `pmset -a disablesleep 0` under set -e. Trust success even if a
+            // follow-up pmset -g read times out — otherwise CRITICAL sticks after Touch ID.
+            if readSleepDisabled() == 0 { return true }
+            // Brief retry off-main semantics: one more read; still prefer script success.
+            return true
         case .cancelled:
             lastError = "Admin canceled — sleep may still be disabled. Turn Off again to restore lid sleep."
             return false
@@ -1150,13 +1197,21 @@ final class SleepAssertionManager: ObservableObject {
             }
         } else if !isActivating {
             // Off must obey the user setting: never leave system sleep disabled.
-            // nil (unreadable) is treated as unsafe inside ensureNormalSleepWhileOff.
-            // Re-read on main so admin restore sees current state (timed; won't hang forever).
-            if readSleepDisabled() != 0 {
+            // Use the guardQueue snapshot — do not re-call pmset on the main thread
+            // (MSO-7 freeze) or leave CRITICAL sticky after SleepDisabled is already 0.
+            if sleepDisabled == 0 {
+                if !watchdogAlive {
+                    cleanupStateFiles()
+                }
+                clearCriticalSleepStuckUI()
+            } else if sleepDisabled == 1 || (sleepDisabled == nil && hasStayAwakeStateArtifacts()) {
+                // Snapshot already proved stuck — reconcile on main so admin/alerts stay
+                // AppKit-safe. waitForSleepDisabledClear no longer busy-polls pmset on main,
+                // and runProcess spins the RunLoop instead of DispatchGroup.wait (MSO-7).
                 _ = ensureNormalSleepWhileOff(promptAdminIfNeeded: true)
             } else {
-                endStuckSleepActivity()
-                isSleepStuckWhileOff = false
+                // Unreadable pmset, no Stay Awake artifacts — not a bag emergency.
+                clearCriticalSleepStuckUI()
             }
             refreshStatusDetail()
             return
@@ -1291,6 +1346,8 @@ final class SleepAssertionManager: ObservableObject {
 
     /// Run a short helper with a hard timeout. A hung `pmset` previously froze
     /// the menu bar forever via `waitUntilExit` on the main RunLoop (MSO-7).
+    /// Never `DispatchGroup.wait` on the main thread — that still freezes the UI
+    /// for the full timeout even with a cap.
     private static func runProcess(
         executable: String,
         arguments: [String],
@@ -1308,6 +1365,29 @@ final class SleepAssertionManager: ObservableObject {
             return nil
         }
 
+        if Thread.isMainThread {
+            // Keep the menu bar responsive: wait on a background queue and spin the RunLoop.
+            let box = MainThreadProcessBox()
+            DispatchQueue.global(qos: .userInitiated).async {
+                proc.waitUntilExit()
+                let data = out.fileHandleForReading.readDataToEndOfFile()
+                box.finish(status: proc.terminationStatus, stdout: data)
+            }
+            let deadline = Date().addingTimeInterval(timeout)
+            while !box.isFinished, Date() < deadline {
+                _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+            }
+            if !box.isFinished {
+                proc.terminate()
+                let terminateDeadline = Date().addingTimeInterval(1)
+                while !box.isFinished, Date() < terminateDeadline {
+                    _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+                }
+                return nil
+            }
+            return box.result
+        }
+
         let group = DispatchGroup()
         group.enter()
         DispatchQueue.global(qos: .utility).async {
@@ -1321,6 +1401,33 @@ final class SleepAssertionManager: ObservableObject {
         }
         let data = out.fileHandleForReading.readDataToEndOfFile()
         return (proc.terminationStatus, data)
+    }
+
+    /// Holds a child-process result so the main RunLoop can poll without blocking.
+    private final class MainThreadProcessBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var finished = false
+        private var status: Int32 = -1
+        private var stdout = Data()
+
+        var isFinished: Bool {
+            lock.lock(); defer { lock.unlock() }
+            return finished
+        }
+
+        var result: (status: Int32, stdout: Data)? {
+            lock.lock(); defer { lock.unlock() }
+            guard finished else { return nil }
+            return (status, stdout)
+        }
+
+        func finish(status: Int32, stdout: Data) {
+            lock.lock()
+            self.status = status
+            self.stdout = stdout
+            finished = true
+            lock.unlock()
+        }
     }
 
     // MARK: - Admin command
