@@ -38,10 +38,13 @@ any_live_watchdog() {
 }
 
 uninstall_self() {
-  /bin/launchctl bootout "system/${LABEL}" 2>/dev/null || true
+  # Delete the files FIRST: `launchctl bootout` of our own label kills this
+  # script on the spot, so anything after it never runs (the plist would
+  # survive and reload at every boot).
   rm -f "$PLIST"
   rm -rf "$SAFETY_DIR"
   /usr/bin/logger -t MacStayOn "sleep-safety uninstalled (Off / normal lid sleep)"
+  /bin/launchctl bootout "system/${LABEL}" 2>/dev/null || true
 }
 
 val="$(pmset -g 2>/dev/null | awk 'BEGIN{IGNORECASE=1} $1=="SleepDisabled" || $1=="disablesleep" {print $2; exit}')"

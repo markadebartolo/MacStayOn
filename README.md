@@ -119,6 +119,14 @@ open dist/MacStayOn.app
 
 Open in Xcode: `xcodegen generate && open MacStayOn.xcodeproj`
 
+Run the tests (no admin rights needed; the root scripts run against a sandbox, never the real `pmset`):
+
+```bash
+xcodegen generate
+xcodebuild -project MacStayOn.xcodeproj -scheme MacStayOn -configuration Debug \
+  -derivedDataPath build/DerivedDataTest CODE_SIGNING_ALLOWED=NO test
+```
+
 **Sign, notarize, and publish updates** (Developer ID + Sparkle appcast): see **[docs/DISTRIBUTE-MAC.md](docs/DISTRIBUTE-MAC.md)**.
 
 Update feed (installed apps):  

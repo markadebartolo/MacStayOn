@@ -75,6 +75,12 @@ final class SessionAnalytics: ObservableObject {
     private var ownPID: pid_t = 0
     private var activeKeys: Set<String> = []
     private var runningKeys: Set<String> = []
+    /// Process/window scans run here, never on the main thread: once a second they
+    /// walk every pid and shell out to `ps`, which can stall and froze the menu bar.
+    private let collectionQueue = DispatchQueue(label: "com.markdebartolo.MacStayOn.session-analytics", qos: .utility)
+    private var isCollecting = false
+    /// Bumped on start/stop/clear so a scan that finishes late is not applied to the wrong session.
+    private var sessionToken = 0
 
     /// Combined `ps` %CPU across the app family to count as working.
     private let cpuPercentThreshold: Double = 1.0
@@ -83,6 +89,7 @@ final class SessionAnalytics: ObservableObject {
 
     func start() {
         tearDownObservers()
+        sessionToken += 1
         ownPID = ProcessInfo.processInfo.processIdentifier
         sessionStartedAt = Date()
         lastSampleAt = Date()
@@ -103,7 +110,7 @@ final class SessionAnalytics: ObservableObject {
     }
 
     func stopAndRetainSummary() {
-        sample(final: true)
+        sessionToken += 1
         tearDownObservers()
         if let sessionStartedAt {
             elapsed = Date().timeIntervalSince(sessionStartedAt)
@@ -118,6 +125,7 @@ final class SessionAnalytics: ObservableObject {
     }
 
     func clear() {
+        sessionToken += 1
         tearDownObservers()
         sessionStartedAt = nil
         lastSampleAt = nil
@@ -156,48 +164,102 @@ final class SessionAnalytics: ObservableObject {
         tick = nil
     }
 
-    private func sample(final: Bool = false) {
+    /// One running app as seen on the main thread (NSWorkspace is main-thread API).
+    private struct RunningAppSnapshot {
+        let processIdentifier: pid_t
+        let bundleIdentifier: String?
+        let localizedName: String?
+        let bundlePath: String?
+    }
+
+    /// Everything gathered off the main thread for one sample.
+    private struct SystemSnapshot {
+        let windows: [WinInfo]
+        let pathByPID: [pid_t: String]
+        let childrenOf: [pid_t: [pid_t]]
+        let cpuPercent: [pid_t: Double]
+    }
+
+    private func sample() {
         let now = Date()
         if let sessionStartedAt {
             elapsed = now.timeIntervalSince(sessionStartedAt)
         }
+        // A scan is still running (slow `ps`) — keep the clock ticking, skip this round.
+        guard !isCollecting else { return }
 
+        let frontProcessIdentifier = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let runningApps = NSWorkspace.shared.runningApplications
+            .filter { $0.activationPolicy == .regular && $0.processIdentifier != ownPID }
+            .map {
+                RunningAppSnapshot(
+                    processIdentifier: $0.processIdentifier,
+                    bundleIdentifier: $0.bundleIdentifier,
+                    localizedName: $0.localizedName,
+                    bundlePath: $0.bundleURL?.path
+                )
+            }
+
+        isCollecting = true
+        let tokenAtStart = sessionToken
+        collectionQueue.async { [weak self] in
+            let pathByPID = Self.processPaths()
+            let parentOf = Self.parentMap(for: Array(pathByPID.keys))
+            let systemSnapshot = SystemSnapshot(
+                windows: Self.appWindows(allSpaces: true),
+                pathByPID: pathByPID,
+                childrenOf: Self.childrenMap(from: parentOf),
+                cpuPercent: Self.cpuPercentByPID()
+            )
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.isCollecting = false
+                guard tokenAtStart == self.sessionToken, self.isLive else { return }
+                self.apply(
+                    runningApps: runningApps,
+                    frontProcessIdentifier: frontProcessIdentifier,
+                    systemSnapshot: systemSnapshot
+                )
+            }
+        }
+    }
+
+    private func apply(
+        runningApps: [RunningAppSnapshot],
+        frontProcessIdentifier: pid_t?,
+        systemSnapshot: SystemSnapshot
+    ) {
+        let now = Date()
         let previous = lastSampleAt ?? now
         let delta = max(0, now.timeIntervalSince(previous))
         lastSampleAt = now
-        guard delta > 0 || final else {
+        guard delta > 0 else {
             publishApps()
             return
         }
 
-        let frontmost = NSWorkspace.shared.frontmostApplication
-        let frontPID = frontmost?.processIdentifier
-        let apps = NSWorkspace.shared.runningApplications
-            .filter { $0.activationPolicy == .regular && $0.processIdentifier != ownPID }
+        let frontPID = frontProcessIdentifier
+        let pathByPID = systemSnapshot.pathByPID
+        let childrenOf = systemSnapshot.childrenOf
+        let cpuPercent = systemSnapshot.cpuPercent
 
-        let windows = Self.appWindows(allSpaces: true)
         var windowTitlesByPID: [pid_t: [String]] = [:]
         var pidsWithWindows = Set<pid_t>()
-        for win in windows {
+        for win in systemSnapshot.windows {
             pidsWithWindows.insert(win.pid)
             guard let title = win.title, !title.isEmpty else { continue }
             windowTitlesByPID[win.pid, default: []].append(title)
         }
 
-        let pathByPID = Self.processPaths()
-        let parentOf = Self.parentMap(for: Array(pathByPID.keys))
-        let childrenOf = Self.childrenMap(from: parentOf)
-        let cpuPercent = Self.cpuPercentByPID()
-
         var nextActive = Set<String>()
         var nextRunning = Set<String>()
 
-        for app in apps {
+        for app in runningApps {
             let pid = app.processIdentifier
             let bid = app.bundleIdentifier ?? "pid.\(pid)"
             let appName = app.localizedName ?? bid
             nextRunning.insert(bid)
-            let bundlePath = app.bundleURL?.path
+            let bundlePath = app.bundlePath
             let roots = Self.supportRoots(appName: appName, bundleID: app.bundleIdentifier)
 
             let memberPIDs = Self.memberPIDs(
@@ -368,20 +430,13 @@ final class SessionAnalytics: ObservableObject {
 
     /// `ps` %CPU — reliable for sandboxed Electron helpers where `proc_pid_rusage` fails.
     private static func cpuPercentByPID() -> [pid_t: Double] {
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/bin/ps")
-        proc.arguments = ["-axo", "pid=,pcpu="]
-        let out = Pipe()
-        proc.standardOutput = out
-        proc.standardError = Pipe()
-        do {
-            try proc.run()
-            proc.waitUntilExit()
-        } catch {
+        guard let result = ProcessRunner.run(
+            executable: "/bin/ps",
+            arguments: ["-axo", "pid=,pcpu="],
+            timeout: 3
+        ), let text = String(data: result.stdout, encoding: .utf8) else {
             return [:]
         }
-        let data = out.fileHandleForReading.readDataToEndOfFile()
-        guard let text = String(data: data, encoding: .utf8) else { return [:] }
 
         var map: [pid_t: Double] = [:]
         for line in text.split(whereSeparator: \.isNewline) {

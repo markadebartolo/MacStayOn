@@ -50,10 +50,13 @@ enum SleepSafetyResources {
     }
 
     uninstall_self() {
-      /bin/launchctl bootout "system/${LABEL}" 2>/dev/null || true
+      # Delete the files FIRST: `launchctl bootout` of our own label kills this
+      # script on the spot, so anything after it never runs (the plist would
+      # survive and reload at every boot).
       rm -f "$PLIST"
       rm -rf "$SAFETY_DIR"
       /usr/bin/logger -t MacStayOn "sleep-safety uninstalled (Off / normal lid sleep)"
+      /bin/launchctl bootout "system/${LABEL}" 2>/dev/null || true
     }
 
     val="$(pmset -g 2>/dev/null | awk 'BEGIN{IGNORECASE=1} $1=="SleepDisabled" || $1=="disablesleep" {print $2; exit}')"
@@ -105,13 +108,42 @@ enum SleepSafetyResources {
     /bin/rm -rf "/Library/Application Support/MacStayOn"
     """
 
+    /// Stages the daemon files for the root enable script to copy into /Library.
+    /// The shared /tmp state dir can be left missing or root-owned by an earlier
+    /// session, so fall back to a fresh per-user temp dir (root can read either).
     static func writeStagingFiles(to directory: URL) throws -> (script: URL, plist: URL) {
+        do {
+            return try writeStagingFilesOrThrow(to: directory)
+        } catch let primaryError {
+            let fallbackDirectory = FileManager.default.temporaryDirectory
+                .appendingPathComponent("MacStayOn-staging-\(UUID().uuidString)", isDirectory: true)
+            do {
+                return try writeStagingFilesOrThrow(to: fallbackDirectory)
+            } catch {
+                throw primaryError
+            }
+        }
+    }
+
+    private static func writeStagingFilesOrThrow(to directory: URL) throws -> (script: URL, plist: URL) {
+        let fileManager = FileManager.default
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         let scriptURL = directory.appendingPathComponent(scriptName)
         let plistURL = directory.appendingPathComponent(plistName)
-        try script.write(to: scriptURL, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
-        try plist.write(to: plistURL, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: plistURL.path)
+        try writeFile(script, to: scriptURL, permissions: 0o755)
+        try writeFile(plist, to: plistURL, permissions: 0o644)
         return (scriptURL, plistURL)
+    }
+
+    /// Writes a small text file in place. Deliberately not an atomic write: these
+    /// files gain nothing from the extra temporary-item step, and it is one more
+    /// thing that can fail right before an admin prompt. A stale copy (possibly
+    /// root-owned, left by an earlier privileged session) is removed first so it
+    /// cannot block the new one.
+    static func writeFile(_ text: String, to fileURL: URL, permissions: Int) throws {
+        let fileManager = FileManager.default
+        try? fileManager.removeItem(at: fileURL)
+        try Data(text.utf8).write(to: fileURL)
+        try fileManager.setAttributes([.posixPermissions: permissions], ofItemAtPath: fileURL.path)
     }
 }

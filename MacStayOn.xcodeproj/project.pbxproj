@@ -7,20 +7,37 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2A2BCF354216A62CCB62DD78 /* PrivilegedScriptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E2FCBC3F6509D33A94F3C0 /* PrivilegedScriptTests.swift */; };
+		31FBF53856FB7B92DA1827EC /* SleepAssertionManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDB103E5973E2F05F7ED567E /* SleepAssertionManagerTests.swift */; };
+		3202CD2C9C0A226DA580F788 /* SleepAssertionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C829051A9A4218DD77F2C32C /* SleepAssertionManager.swift */; };
 		38FE80004493B705CE5D32CF /* CenterTopMenuPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80DF207C4E039C39F29FEA7B /* CenterTopMenuPanel.swift */; };
+		3CBDE4E2FC5257128853E845 /* LidMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE3FEBA7898EB6C7BE896A9 /* LidMonitor.swift */; };
 		3CF36D329C07A54648C4299E /* SleepAssertionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C829051A9A4218DD77F2C32C /* SleepAssertionManager.swift */; };
 		40AA5D4EAB30AA2E55B52318 /* SingleInstance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 111C9A1D39FAD52F166C817B /* SingleInstance.swift */; };
 		507C0DD7BD2F86D35BE9E3F2 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = D3F0E55EB16B95A6530486F1 /* Sparkle */; };
+		515B12DB9008A94F0616B991 /* DisplayDarkenOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B184CC33D848ECAD058D8DB /* DisplayDarkenOverlay.swift */; };
 		541567C97E61A0C6862FF6D1 /* LidMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE3FEBA7898EB6C7BE896A9 /* LidMonitor.swift */; };
+		54E736EB1CC4E741F651A3A8 /* LidAngleMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1861888FA20FA7D488B3147 /* LidAngleMonitor.swift */; };
+		6623DC36A1FA7BB55285444E /* SleepSafetyResources.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55BE46A98A53AE3C8EB2853F /* SleepSafetyResources.swift */; };
+		6AC62C0348F5E1D008DFF247 /* PrivilegedScripts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41AF605B3F140A8DA38BC681 /* PrivilegedScripts.swift */; };
+		7A1FA862511B1951779ED557 /* PrivilegedScripts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41AF605B3F140A8DA38BC681 /* PrivilegedScripts.swift */; };
 		7C340361E5950D9982E45146 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DD81DF72ADB6F9916C297486 /* Assets.xcassets */; };
 		7DF07DAB6995A0E7A56D2F13 /* MacStayOnApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1286037094980442A8B90FA /* MacStayOnApp.swift */; };
+		7E11D403BF098E1E163734FF /* SessionAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29FE82A6B2D548C210FA377A /* SessionAnalytics.swift */; };
+		837EF86EB724E1DA2598D4FB /* ProcessRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC942E6C2132520704B00FE8 /* ProcessRunner.swift */; };
 		8CEFDAA5508E9FEF5B82C339 /* LidAngleMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1861888FA20FA7D488B3147 /* LidAngleMonitor.swift */; };
 		994BC54195A08448F33476C1 /* SleepSafetyResources.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55BE46A98A53AE3C8EB2853F /* SleepSafetyResources.swift */; };
+		99829E353A6A4145112AB6C1 /* HardwareProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27B3C8D004F277239D200C6C /* HardwareProfile.swift */; };
+		C80C9C1F2CFB6C4AD7A85BF2 /* TestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF7659A0879EC73A71B4072B /* TestSupport.swift */; };
+		E093F6196C8D15DCC84E61F5 /* ParsingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 995FB150C6E8801985074DEA /* ParsingTests.swift */; };
+		E44F7C45940755ACBA619D3A /* ProcessRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFC87360FF69778D56D66609 /* ProcessRunnerTests.swift */; };
 		F063D11696643220875CA735 /* ScreenFlashAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D114C7D8FD0580CC98FE07A /* ScreenFlashAlert.swift */; };
 		F4A203C6768F9BA4149682A0 /* LaunchAtLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E1252DC44B29CF94F5812E2 /* LaunchAtLogin.swift */; };
 		F829DE180E0AEF1C4949D1BD /* DisplayDarkenOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B184CC33D848ECAD058D8DB /* DisplayDarkenOverlay.swift */; };
 		F92B6F7B687EB64657117621 /* HardwareProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27B3C8D004F277239D200C6C /* HardwareProfile.swift */; };
+		FA8CDD05B8A989783919DBF0 /* ProcessRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC942E6C2132520704B00FE8 /* ProcessRunner.swift */; };
 		FE32EDAF8A7800965EBF4CCC /* SessionAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29FE82A6B2D548C210FA377A /* SessionAnalytics.swift */; };
+		FF5D78A89F25FB3A1886716E /* ScreenFlashAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D114C7D8FD0580CC98FE07A /* ScreenFlashAlert.swift */; };
 		FFEA2E189444E13CB0E9CB60 /* SparkleUpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C4A71BAB6D3D1020EEB6AFC /* SparkleUpdateController.swift */; };
 /* End PBXBuildFile section */
 
@@ -33,16 +50,24 @@
 		29FE82A6B2D548C210FA377A /* SessionAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionAnalytics.swift; sourceTree = "<group>"; };
 		2D114C7D8FD0580CC98FE07A /* ScreenFlashAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenFlashAlert.swift; sourceTree = "<group>"; };
 		3C4A71BAB6D3D1020EEB6AFC /* SparkleUpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdateController.swift; sourceTree = "<group>"; };
+		41AF605B3F140A8DA38BC681 /* PrivilegedScripts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivilegedScripts.swift; sourceTree = "<group>"; };
+		50E2FCBC3F6509D33A94F3C0 /* PrivilegedScriptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivilegedScriptTests.swift; sourceTree = "<group>"; };
 		55BE46A98A53AE3C8EB2853F /* SleepSafetyResources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepSafetyResources.swift; sourceTree = "<group>"; };
 		5D5B0E6326B2762E8D6D6FBC /* MacStayOn.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MacStayOn.entitlements; sourceTree = "<group>"; };
 		5E1252DC44B29CF94F5812E2 /* LaunchAtLogin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLogin.swift; sourceTree = "<group>"; };
 		63BFA15901EA4552DFB5ED84 /* MacStayOn-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MacStayOn-Bridging-Header.h"; sourceTree = "<group>"; };
 		80DF207C4E039C39F29FEA7B /* CenterTopMenuPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CenterTopMenuPanel.swift; sourceTree = "<group>"; };
+		995FB150C6E8801985074DEA /* ParsingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsingTests.swift; sourceTree = "<group>"; };
+		9D0813111DB4D6C25D861851 /* MacStayOnTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacStayOnTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B1861888FA20FA7D488B3147 /* LidAngleMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LidAngleMonitor.swift; sourceTree = "<group>"; };
+		BC942E6C2132520704B00FE8 /* ProcessRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessRunner.swift; sourceTree = "<group>"; };
 		C1286037094980442A8B90FA /* MacStayOnApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacStayOnApp.swift; sourceTree = "<group>"; };
 		C829051A9A4218DD77F2C32C /* SleepAssertionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepAssertionManager.swift; sourceTree = "<group>"; };
+		CFC87360FF69778D56D66609 /* ProcessRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessRunnerTests.swift; sourceTree = "<group>"; };
 		DD81DF72ADB6F9916C297486 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		EF158FFE4308ECB5751ADE98 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		FDB103E5973E2F05F7ED567E /* SleepAssertionManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepAssertionManagerTests.swift; sourceTree = "<group>"; };
+		FF7659A0879EC73A71B4072B /* TestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestSupport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -57,6 +82,18 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		06864766558FFDA0A0CA2C17 /* MacStayOnTests */ = {
+			isa = PBXGroup;
+			children = (
+				995FB150C6E8801985074DEA /* ParsingTests.swift */,
+				50E2FCBC3F6509D33A94F3C0 /* PrivilegedScriptTests.swift */,
+				CFC87360FF69778D56D66609 /* ProcessRunnerTests.swift */,
+				FDB103E5973E2F05F7ED567E /* SleepAssertionManagerTests.swift */,
+				FF7659A0879EC73A71B4072B /* TestSupport.swift */,
+			);
+			path = MacStayOnTests;
+			sourceTree = "<group>";
+		};
 		0D022B2758C5ED1A35615AF5 /* MacStayOn */ = {
 			isa = PBXGroup;
 			children = (
@@ -71,6 +108,8 @@
 				63BFA15901EA4552DFB5ED84 /* MacStayOn-Bridging-Header.h */,
 				5D5B0E6326B2762E8D6D6FBC /* MacStayOn.entitlements */,
 				C1286037094980442A8B90FA /* MacStayOnApp.swift */,
+				41AF605B3F140A8DA38BC681 /* PrivilegedScripts.swift */,
+				BC942E6C2132520704B00FE8 /* ProcessRunner.swift */,
 				2D114C7D8FD0580CC98FE07A /* ScreenFlashAlert.swift */,
 				29FE82A6B2D548C210FA377A /* SessionAnalytics.swift */,
 				111C9A1D39FAD52F166C817B /* SingleInstance.swift */,
@@ -85,6 +124,7 @@
 			isa = PBXGroup;
 			children = (
 				25AB80C519C1F0D8850950B5 /* MacStayOn.app */,
+				9D0813111DB4D6C25D861851 /* MacStayOnTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -93,6 +133,7 @@
 			isa = PBXGroup;
 			children = (
 				0D022B2758C5ED1A35615AF5 /* MacStayOn */,
+				06864766558FFDA0A0CA2C17 /* MacStayOnTests */,
 				3147F13761AAF3B3D02F1BB8 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -120,6 +161,23 @@
 			productReference = 25AB80C519C1F0D8850950B5 /* MacStayOn.app */;
 			productType = "com.apple.product-type.application";
 		};
+		E46EF77DD0B3C0CDB04DD36B /* MacStayOnTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 608114F44BEAC963F3458437 /* Build configuration list for PBXNativeTarget "MacStayOnTests" */;
+			buildPhases = (
+				7350040300DEA03E3844A350 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MacStayOnTests;
+			packageProductDependencies = (
+			);
+			productName = MacStayOnTests;
+			productReference = 9D0813111DB4D6C25D861851 /* MacStayOnTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -130,6 +188,10 @@
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
 					41AB4B2CF64312C81B3754C3 = {
+						DevelopmentTeam = QA3AY5HLGM;
+						ProvisioningStyle = Automatic;
+					};
+					E46EF77DD0B3C0CDB04DD36B = {
 						DevelopmentTeam = QA3AY5HLGM;
 						ProvisioningStyle = Automatic;
 					};
@@ -153,6 +215,7 @@
 			projectRoot = "";
 			targets = (
 				41AB4B2CF64312C81B3754C3 /* MacStayOn */,
+				E46EF77DD0B3C0CDB04DD36B /* MacStayOnTests */,
 			);
 		};
 /* End PBXProject section */
@@ -169,6 +232,28 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		7350040300DEA03E3844A350 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				515B12DB9008A94F0616B991 /* DisplayDarkenOverlay.swift in Sources */,
+				99829E353A6A4145112AB6C1 /* HardwareProfile.swift in Sources */,
+				54E736EB1CC4E741F651A3A8 /* LidAngleMonitor.swift in Sources */,
+				3CBDE4E2FC5257128853E845 /* LidMonitor.swift in Sources */,
+				E093F6196C8D15DCC84E61F5 /* ParsingTests.swift in Sources */,
+				2A2BCF354216A62CCB62DD78 /* PrivilegedScriptTests.swift in Sources */,
+				7A1FA862511B1951779ED557 /* PrivilegedScripts.swift in Sources */,
+				FA8CDD05B8A989783919DBF0 /* ProcessRunner.swift in Sources */,
+				E44F7C45940755ACBA619D3A /* ProcessRunnerTests.swift in Sources */,
+				FF5D78A89F25FB3A1886716E /* ScreenFlashAlert.swift in Sources */,
+				7E11D403BF098E1E163734FF /* SessionAnalytics.swift in Sources */,
+				3202CD2C9C0A226DA580F788 /* SleepAssertionManager.swift in Sources */,
+				31FBF53856FB7B92DA1827EC /* SleepAssertionManagerTests.swift in Sources */,
+				6623DC36A1FA7BB55285444E /* SleepSafetyResources.swift in Sources */,
+				C80C9C1F2CFB6C4AD7A85BF2 /* TestSupport.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B61544B7A7AC92CE02444CBC /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -180,6 +265,8 @@
 				8CEFDAA5508E9FEF5B82C339 /* LidAngleMonitor.swift in Sources */,
 				541567C97E61A0C6862FF6D1 /* LidMonitor.swift in Sources */,
 				7DF07DAB6995A0E7A56D2F13 /* MacStayOnApp.swift in Sources */,
+				6AC62C0348F5E1D008DFF247 /* PrivilegedScripts.swift in Sources */,
+				837EF86EB724E1DA2598D4FB /* ProcessRunner.swift in Sources */,
 				F063D11696643220875CA735 /* ScreenFlashAlert.swift in Sources */,
 				FE32EDAF8A7800965EBF4CCC /* SessionAnalytics.swift in Sources */,
 				40AA5D4EAB30AA2E55B52318 /* SingleInstance.swift in Sources */,
@@ -198,7 +285,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = MacStayOn/MacStayOn.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 27;
+				CURRENT_PROJECT_VERSION = 29;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MacStayOn/Info.plist;
@@ -206,11 +293,30 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.3.3;
+				MARKETING_VERSION = 1.3.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.markdebartolo.MacStayOn;
 				PRODUCT_NAME = MacStayOn;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "MacStayOn/MacStayOn-Bridging-Header.h";
+			};
+			name = Release;
+		};
+		5B77449F0B112653D66DCFFD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_ALLOWED = NO;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MacStayOn/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.markdebartolo.MacStayOnTests;
+				SDKROOT = macosx;
 				SWIFT_OBJC_BRIDGING_HEADER = "MacStayOn/MacStayOn-Bridging-Header.h";
 			};
 			name = Release;
@@ -288,7 +394,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = MacStayOn/MacStayOn.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 27;
+				CURRENT_PROJECT_VERSION = 29;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MacStayOn/Info.plist;
@@ -296,11 +402,30 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.3.3;
+				MARKETING_VERSION = 1.3.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.markdebartolo.MacStayOn;
 				PRODUCT_NAME = MacStayOn;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "MacStayOn/MacStayOn-Bridging-Header.h";
+			};
+			name = Debug;
+		};
+		9704EDF5B67052712CFC39E6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_ALLOWED = NO;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MacStayOn/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.markdebartolo.MacStayOnTests;
+				SDKROOT = macosx;
 				SWIFT_OBJC_BRIDGING_HEADER = "MacStayOn/MacStayOn-Bridging-Header.h";
 			};
 			name = Debug;
@@ -368,6 +493,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		608114F44BEAC963F3458437 /* Build configuration list for PBXNativeTarget "MacStayOnTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9704EDF5B67052712CFC39E6 /* Debug */,
+				5B77449F0B112653D66DCFFD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		99504AF1E6005FAB6DE524C9 /* Build configuration list for PBXNativeTarget "MacStayOn" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
