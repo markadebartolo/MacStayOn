@@ -50,14 +50,27 @@ enum HardwareProfile {
 
     static var current: Info {
         lock.lock()
-        defer { lock.unlock() }
-        if let cached { return cached }
+        if let cached {
+            lock.unlock()
+            return cached
+        }
+        lock.unlock()
+
+        // `system_profiler` can take seconds. The UI must never wait for it: until the
+        // background warm-up finishes, the main thread gets the instant sysctl identity.
+        if Thread.isMainThread {
+            return Info(modelIdentifier: readModelIdentifier(), marketingName: "", chipName: "")
+        }
+
         let profile = readProfile()
         let info = Info(
             modelIdentifier: profile.modelIdentifier.isEmpty ? readModelIdentifier() : profile.modelIdentifier,
             marketingName: profile.marketingName,
             chipName: profile.chipName
         )
+        lock.lock()
+        defer { lock.unlock() }
+        if let cached { return cached }
         cached = info
         return info
     }
@@ -162,19 +175,14 @@ enum HardwareProfile {
     /// Marketing name / chip from `system_profiler` JSON.
     private static func readProfile() -> RawProfile {
         var raw = RawProfile()
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
-        proc.arguments = ["SPHardwareDataType", "-json"]
-        let out = Pipe()
-        proc.standardOutput = out
-        proc.standardError = Pipe()
-        do {
-            try proc.run()
-            proc.waitUntilExit()
-        } catch {
+        guard let result = ProcessRunner.run(
+            executable: "/usr/sbin/system_profiler",
+            arguments: ["SPHardwareDataType", "-json"],
+            timeout: 15
+        ) else {
             return raw
         }
-        let data = out.fileHandleForReading.readDataToEndOfFile()
+        let data = result.stdout
         guard
             let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
             let rows = json["SPHardwareDataType"] as? [[String: Any]],

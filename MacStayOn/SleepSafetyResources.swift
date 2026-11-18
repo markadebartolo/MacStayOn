@@ -50,10 +50,13 @@ enum SleepSafetyResources {
     }
 
     uninstall_self() {
-      /bin/launchctl bootout "system/${LABEL}" 2>/dev/null || true
+      # Delete the files FIRST: `launchctl bootout` of our own label kills this
+      # script on the spot, so anything after it never runs (the plist would
+      # survive and reload at every boot).
       rm -f "$PLIST"
       rm -rf "$SAFETY_DIR"
       /usr/bin/logger -t MacStayOn "sleep-safety uninstalled (Off / normal lid sleep)"
+      /bin/launchctl bootout "system/${LABEL}" 2>/dev/null || true
     }
 
     val="$(pmset -g 2>/dev/null | awk 'BEGIN{IGNORECASE=1} $1=="SleepDisabled" || $1=="disablesleep" {print $2; exit}')"
@@ -127,13 +130,20 @@ enum SleepSafetyResources {
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         let scriptURL = directory.appendingPathComponent(scriptName)
         let plistURL = directory.appendingPathComponent(plistName)
-        for staleURL in [scriptURL, plistURL] {
-            try? fileManager.removeItem(at: staleURL)
-        }
-        try Data(script.utf8).write(to: scriptURL)
-        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
-        try Data(plist.utf8).write(to: plistURL)
-        try fileManager.setAttributes([.posixPermissions: 0o644], ofItemAtPath: plistURL.path)
+        try writeFile(script, to: scriptURL, permissions: 0o755)
+        try writeFile(plist, to: plistURL, permissions: 0o644)
         return (scriptURL, plistURL)
+    }
+
+    /// Writes a small text file in place. Deliberately not an atomic write: these
+    /// files gain nothing from the extra temporary-item step, and it is one more
+    /// thing that can fail right before an admin prompt. A stale copy (possibly
+    /// root-owned, left by an earlier privileged session) is removed first so it
+    /// cannot block the new one.
+    static func writeFile(_ text: String, to fileURL: URL, permissions: Int) throws {
+        let fileManager = FileManager.default
+        try? fileManager.removeItem(at: fileURL)
+        try Data(text.utf8).write(to: fileURL)
+        try fileManager.setAttributes([.posixPermissions: permissions], ofItemAtPath: fileURL.path)
     }
 }

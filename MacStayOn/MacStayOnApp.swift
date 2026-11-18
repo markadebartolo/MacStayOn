@@ -26,6 +26,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         // Two copies (dist + Debug) share /tmp state and can fight the watchdog.
         if !SingleInstance.claimOrActivateExisting() {
+            // This copy must not run any Off/quit cleanup: it would drop the restore
+            // sentinel and switch the already-running copy's Stay Awake off.
+            sleepManager.becomeInertSecondaryInstance()
             NSApp.terminate(nil)
         }
     }

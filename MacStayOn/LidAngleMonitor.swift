@@ -3,163 +3,194 @@ import IOKit.hid
 
 /// Streams Apple's lid-angle sensor (`las`) on a dedicated run-loop thread.
 /// Degrees: ~0 closed → higher when open (~90–120 upright).
-final class LidAngleMonitor: @unchecked Sendable {
+///
+/// Each `start()` creates one `ListeningSession` that owns its own thread and every
+/// HID resource it opens, and tears them down on that same thread. `stop()` only
+/// signals it. (Tearing the device down from the main thread while the sensor
+/// thread could still be inside a report callback was a use-after-free.)
+final class LidAngleMonitor {
     /// Called on the main queue whenever the angle changes.
     var onAngleChange: ((Int) -> Void)?
 
-    private(set) var isAvailable = false
-
-    private var manager: IOHIDManager?
-    private var device: IOHIDDevice?
-    private var reportBuffer: UnsafeMutablePointer<UInt8>?
-    private let reportBufferSize = 64
-    private var lastAngle: Int?
-    private var thread: Thread?
-    private var runLoop: CFRunLoop?
-    private let logURL = URL(fileURLWithPath: "/tmp/macstayon-lid.log")
+    private var listeningSession: ListeningSession?
 
     func start() {
         stop()
-        log("start requested")
-        let thread = Thread { [weak self] in
-            self?.threadMain()
+        LidAngleLog.append("start requested")
+        let session = ListeningSession { [weak self] session, degrees in
+            // Prefer the main run loop immediately so the warn flash paints on the next frame.
+            DispatchQueue.main.async(qos: .userInteractive) {
+                guard let self, self.listeningSession === session else { return }
+                self.onAngleChange?(degrees)
+            }
         }
-        thread.name = "MacStayOn.LidAngle"
-        thread.qualityOfService = .userInteractive
-        self.thread = thread
-        thread.start()
+        listeningSession = session
+        session.start()
     }
 
     func stop() {
+        guard let session = listeningSession else { return }
+        listeningSession = nil
+        session.requestStop()
+        LidAngleLog.append("stopped")
+    }
+
+    deinit {
+        listeningSession?.requestStop()
+    }
+}
+
+/// One sensor-listening run. The thread keeps this object alive until it has closed
+/// the device, so the HID callback context can never dangle.
+private final class ListeningSession: @unchecked Sendable {
+    private let onAngle: (ListeningSession, Int) -> Void
+    private let stateLock = NSLock()
+    private var stopRequested = false
+    private var threadRunLoop: CFRunLoop?
+    /// Touched only on the sensor thread.
+    private var lastAngle: Int?
+
+    private static let reportBufferSize = 64
+
+    init(onAngle: @escaping (ListeningSession, Int) -> Void) {
+        self.onAngle = onAngle
+    }
+
+    func start() {
+        let thread = Thread { self.threadMain() }
+        thread.name = "MacStayOn.LidAngle"
+        thread.qualityOfService = .userInteractive
+        thread.start()
+    }
+
+    func requestStop() {
+        stateLock.lock()
+        stopRequested = true
+        let runLoop = threadRunLoop
+        stateLock.unlock()
         if let runLoop {
             CFRunLoopStop(runLoop)
         }
-        thread?.cancel()
-        thread = nil
-        runLoop = nil
-        // teardown happens on the thread; also best-effort here
-        teardownHID()
-        lastAngle = nil
-        isAvailable = false
-        log("stopped")
+    }
+
+    private var isStopRequested: Bool {
+        stateLock.lock(); defer { stateLock.unlock() }
+        return stopRequested
     }
 
     private func threadMain() {
-        let mgr = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
-        manager = mgr
+        let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
         let matching: [String: Any] = [
             kIOHIDVendorIDKey: 1452,
             kIOHIDPrimaryUsagePageKey: 0x20,
             kIOHIDPrimaryUsageKey: 138,
         ]
-        IOHIDManagerSetDeviceMatching(mgr, matching as CFDictionary)
-        let mgrOpen = IOHIDManagerOpen(mgr, IOOptionBits(kIOHIDOptionsTypeNone))
-        guard mgrOpen == kIOReturnSuccess else {
-            log("manager open failed \(mgrOpen)")
+        IOHIDManagerSetDeviceMatching(manager, matching as CFDictionary)
+        let managerOpenResult = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+        guard managerOpenResult == kIOReturnSuccess else {
+            LidAngleLog.append("manager open failed \(managerOpenResult)")
             return
         }
-        guard let devices = IOHIDManagerCopyDevices(mgr) as? Set<IOHIDDevice>,
-              let found = devices.first
+        defer { IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone)) }
+
+        guard let devices = IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice>,
+              let device = devices.first
         else {
-            log("no las device")
+            LidAngleLog.append("no las device")
             return
         }
-        device = found
 
-        var openKr = IOHIDDeviceOpen(found, IOOptionBits(kIOHIDOptionsTypeSeizeDevice))
-        if openKr != kIOReturnSuccess {
-            log("seize failed \(openKr), trying normal open")
-            openKr = IOHIDDeviceOpen(found, IOOptionBits(kIOHIDOptionsTypeNone))
+        var deviceOpenResult = IOHIDDeviceOpen(device, IOOptionBits(kIOHIDOptionsTypeSeizeDevice))
+        if deviceOpenResult != kIOReturnSuccess {
+            LidAngleLog.append("seize failed \(deviceOpenResult), trying normal open")
+            deviceOpenResult = IOHIDDeviceOpen(device, IOOptionBits(kIOHIDOptionsTypeNone))
         }
-        guard openKr == kIOReturnSuccess else {
-            log("device open failed \(openKr)")
+        guard deviceOpenResult == kIOReturnSuccess else {
+            LidAngleLog.append("device open failed \(deviceOpenResult)")
             return
         }
-        log("device open ok")
+        LidAngleLog.append("device open ok")
 
-        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: reportBufferSize)
-        reportBuffer = buffer
+        let reportBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: Self.reportBufferSize)
         IOHIDDeviceRegisterInputReportCallback(
-            found,
-            buffer,
-            reportBufferSize,
+            device,
+            reportBuffer,
+            Self.reportBufferSize,
             { context, _, _, _, reportID, report, reportLength in
-                let monitor = Unmanaged<LidAngleMonitor>.fromOpaque(context!).takeUnretainedValue()
-                monitor.handleReport(reportID: reportID, report: report, length: reportLength)
+                let session = Unmanaged<ListeningSession>.fromOpaque(context!).takeUnretainedValue()
+                session.handleReport(reportID: reportID, report: report, length: reportLength)
             },
             Unmanaged.passUnretained(self).toOpaque()
         )
 
-        let rl = CFRunLoopGetCurrent()!
-        runLoop = rl
-        IOHIDDeviceScheduleWithRunLoop(found, rl, CFRunLoopMode.defaultMode.rawValue)
-        IOHIDManagerScheduleWithRunLoop(mgr, rl, CFRunLoopMode.defaultMode.rawValue)
-        isAvailable = true
-        log("run loop listening")
+        let runLoop: CFRunLoop = CFRunLoopGetCurrent()
+        let runLoopMode = CFRunLoopMode.defaultMode.rawValue
+        IOHIDDeviceScheduleWithRunLoop(device, runLoop, runLoopMode)
+        IOHIDManagerScheduleWithRunLoop(manager, runLoop, runLoopMode)
+        stateLock.lock()
+        threadRunLoop = runLoop
+        stateLock.unlock()
+        LidAngleLog.append("run loop listening")
 
-        while !Thread.current.isCancelled {
+        while !isStopRequested {
             CFRunLoopRunInMode(CFRunLoopMode.defaultMode, 0.5, false)
         }
-        teardownHID()
-    }
 
-    private func teardownHID() {
-        let rl = runLoop ?? CFRunLoopGetCurrent()
-        if let device, let rl {
-            IOHIDDeviceUnscheduleFromRunLoop(device, rl, CFRunLoopMode.defaultMode.rawValue)
-            IOHIDDeviceClose(device, IOOptionBits(kIOHIDOptionsTypeNone))
-        } else if let device {
-            IOHIDDeviceClose(device, IOOptionBits(kIOHIDOptionsTypeNone))
-        }
-        device = nil
-        if let manager, let rl {
-            IOHIDManagerUnscheduleFromRunLoop(manager, rl, CFRunLoopMode.defaultMode.rawValue)
-            IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
-        } else if let manager {
-            IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
-        }
-        manager = nil
-        reportBuffer?.deallocate()
-        reportBuffer = nil
+        // Same thread that receives reports, so no callback can be in flight here.
+        IOHIDDeviceUnscheduleFromRunLoop(device, runLoop, runLoopMode)
+        IOHIDManagerUnscheduleFromRunLoop(manager, runLoop, runLoopMode)
+        IOHIDDeviceClose(device, IOOptionBits(kIOHIDOptionsTypeNone))
+        reportBuffer.deallocate()
+        stateLock.lock()
+        threadRunLoop = nil
+        stateLock.unlock()
     }
 
     private func handleReport(reportID: UInt32, report: UnsafeMutablePointer<UInt8>, length: CFIndex) {
-        guard reportID == 1, length >= 2 else { return }
+        guard reportID == 1, length >= 2, !isStopRequested else { return }
+        guard let degrees = Self.degrees(fromReport: UnsafeBufferPointer(start: report, count: length)) else { return }
+        guard lastAngle != degrees else { return }
+        lastAngle = degrees
+        LidAngleLog.append("angle=\(degrees)")
+        onAngle(self, degrees)
+    }
 
+    /// Decodes the 9-bit lid angle. Some firmware prefixes the payload with the report id.
+    static func degrees(fromReport report: UnsafeBufferPointer<UInt8>) -> Int? {
+        guard report.count >= 2 else { return nil }
         let degrees: Int
-        if report[0] == 1, length >= 3 {
+        if report[0] == 1, report.count >= 3 {
             degrees = (Int(report[1]) | (Int(report[2]) << 8)) & 0x1FF
         } else {
             degrees = (Int(report[0]) | (Int(report[1]) << 8)) & 0x1FF
         }
-        guard degrees <= 360 else { return }
-        guard lastAngle != degrees else { return }
-        lastAngle = degrees
-        log("angle=\(degrees)")
-
-        // Prefer the main run loop immediately so the warn flash paints on the next frame.
-        DispatchQueue.main.async(qos: .userInteractive) { [weak self] in
-            self?.onAngleChange?(degrees)
-        }
+        return degrees <= 360 ? degrees : nil
     }
+}
 
-    private func log(_ line: String) {
-        let stamp = ISO8601DateFormatter().string(from: Date())
-        let text = "\(stamp) \(line)\n"
-        if let data = text.data(using: .utf8) {
-            if FileManager.default.fileExists(atPath: logURL.path) {
-                if let handle = try? FileHandle(forWritingTo: logURL) {
-                    defer { try? handle.close() }
-                    handle.seekToEndOfFile()
-                    handle.write(data)
-                }
-            } else {
-                try? data.write(to: logURL)
-            }
+/// Small append-only debug log for lid events (shared with the close-warning flash).
+enum LidAngleLog {
+    private static let logURL = URL(fileURLWithPath: "/tmp/macstayon-lid.log")
+    private static let maximumLogBytes = 512 * 1024
+    private static let lock = NSLock()
+
+    static func append(_ line: String) {
+        let text = "\(ISO8601DateFormatter().string(from: Date())) \(line)\n"
+        guard let data = text.data(using: .utf8) else { return }
+        lock.lock(); defer { lock.unlock() }
+        let fileManager = FileManager.default
+        // The angle stream can be chatty over a long session — start over rather than grow forever.
+        if let attributes = try? fileManager.attributesOfItem(atPath: logURL.path),
+           let size = attributes[.size] as? NSNumber, size.intValue > maximumLogBytes {
+            try? fileManager.removeItem(at: logURL)
         }
-    }
-
-    deinit {
-        stop()
+        if fileManager.fileExists(atPath: logURL.path),
+           let handle = try? FileHandle(forWritingTo: logURL) {
+            defer { try? handle.close() }
+            handle.seekToEndOfFile()
+            handle.write(data)
+        } else {
+            try? data.write(to: logURL)
+        }
     }
 }

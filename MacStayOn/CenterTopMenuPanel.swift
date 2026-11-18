@@ -11,6 +11,10 @@ final class MenuPanelCenteringController {
     private var observers: [NSObjectProtocol] = []
     private var burstTimer: Timer?
     private var isCentering = false
+    /// The window that actually hosts the menu strip, once SwiftUI has attached it.
+    /// Without this, anything strip-sized (e.g. Sparkle's update prompt) was also
+    /// pinned to the top-center and could not be moved.
+    private weak var menuPanelWindow: NSWindow?
 
     func start() {
         guard observers.isEmpty else { return }
@@ -43,6 +47,9 @@ final class MenuPanelCenteringController {
 
     /// Call when the SwiftUI panel attaches or updates.
     func ping(window: NSWindow? = nil) {
+        if let window {
+            menuPanelWindow = window
+        }
         if let window, isPanelCandidate(window) {
             center(window)
         }
@@ -82,6 +89,10 @@ final class MenuPanelCenteringController {
 
     private func isPanelCandidate(_ window: NSWindow) -> Bool {
         guard window.isVisible else { return false }
+        if let menuPanelWindow {
+            return window === menuPanelWindow
+        }
+        // Not attached yet — fall back to the size heuristic.
         let frame = window.frame
         // Horizontal menu strip (~920×56–200). Skip full-screen overlays / flash windows.
         guard frame.width >= 500, frame.width <= 1200 else { return false }

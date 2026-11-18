@@ -38,10 +38,47 @@ targets:
           - "@executable_path/../Frameworks"
         COMBINE_HIDPI_IMAGES: true
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        MARKETING_VERSION: "1.3.4"
-        CURRENT_PROJECT_VERSION: "28"
+        MARKETING_VERSION: "1.3.5"
+        CURRENT_PROJECT_VERSION: "29"
         ENABLE_HARDENED_RUNTIME: true
         SWIFT_EMIT_LOC_STRINGS: false
         SWIFT_OBJC_BRIDGING_HEADER: MacStayOn/MacStayOn-Bridging-Header.h
     entitlements:
       path: MacStayOn/MacStayOn.entitlements
+  # Logic tests compile the app's non-UI sources directly (no host app): launching
+  # the real app as a test host would fight the installed copy over /tmp state.
+  MacStayOnTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: MacStayOnTests
+      - path: MacStayOn
+        excludes:
+          - MacStayOnApp.swift
+          - SparkleUpdateController.swift
+          - CenterTopMenuPanel.swift
+          - LaunchAtLogin.swift
+          - SingleInstance.swift
+          - Assets.xcassets
+          - Info.plist
+          - MacStayOn.entitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.markdebartolo.MacStayOnTests
+        GENERATE_INFOPLIST_FILE: true
+        SWIFT_OBJC_BRIDGING_HEADER: MacStayOn/MacStayOn-Bridging-Header.h
+        CODE_SIGNING_ALLOWED: "NO"
+schemes:
+  MacStayOn:
+    build:
+      targets:
+        MacStayOn: [run, archive, profile, analyze]
+        MacStayOnTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - MacStayOnTests
+    archive:
+      config: Release
