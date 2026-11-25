@@ -56,7 +56,7 @@ Close the lid and keep working — **Cursor, Claude, builds, and other agents** 
 ## Get started (macOS)
 
 1. Download **[MacStayOn-macos-arm64.zip](https://github.com/markadebartolo/MacStayOn/releases/latest)** from Releases.
-2. Unzip and open **MacStayOn.app** (notarized builds open normally; no right-click workaround needed).
+2. Unzip, drag **MacStayOn.app** into **Applications**, and open it (notarized builds open normally; no right-click workaround needed).
 3. Click the **moon** icon in the menu bar.
 4. Tap **Stay Awake** → confirm the heat warning **in the menu** → approve **admin once** with **Touch ID** when offered (or password). That blocks lid sleep on battery **and** keeps the screensaver off with the lid open.
 5. Close the lid when you are ready. Open it again and MacStayOn asks whether to **restore normal sleep** or stay on.
@@ -92,6 +92,7 @@ Click the menu-bar icon for a **compact horizontal bar** centered under the menu
 | **Lid-close flash** | While On, closing the lid past ~85° pulses the screen orange until the lid is fully shut (or reopened). Needs a lid-angle sensor; skipped quietly on Macs without one. |
 | **Session** | Duration of the current or last Stay Awake session |
 | **Shortcut** | Hold **← → ↑ ↓ + Space** anywhere to toggle Stay Awake. On asks for Touch ID; Off is immediate. Shows a link to grant Input Monitoring access if it's missing |
+| **Guide (?)** | Reopens the built-in walkthrough: install, Turn On, the glow, the keyboard shortcut, and updates. It also opens on its own the first time you launch MacStayOn, and shows what's new after an update |
 | **Updates** | **Check for Updates…** — downloads/installs from GitHub Releases when a newer build exists (turns into **Update x.y.z** if one is waiting) |
 | **Quit** | Restores sleep settings and exits |
 

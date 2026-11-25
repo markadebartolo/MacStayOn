@@ -269,6 +269,10 @@ final class SleepAssertionManager: ObservableObject {
     /// quit handling is skipped.
     func prepareForTermination() {
         guard !isInertSecondaryInstance else { return }
+        // Remembered so the "updated" screen can say Stay Awake was turned off for it.
+        if isEnabled {
+            defaults.set(true, forKey: LaunchGuideDecider.wasOnAtQuitKey)
+        }
         isTerminating = true
         if isEnabled || hasAssertion || FileManager.default.fileExists(atPath: prevFile.path) {
             deactivate(persistOff: true)
