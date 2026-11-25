@@ -51,7 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sleepManager.applyPersistedStateIfNeeded()
         // Sparkle daily check (Release only); menu “Check for Updates…” always available.
         SparkleUpdateController.startIfConfigured()
-        // ←→↑↓ + Space toggles Stay Awake from any app (needs Accessibility).
+        // ←→↑↓ + Space toggles Stay Awake from any app (needs Input Monitoring).
         keyboardShortcut.onToggle = { [sleepManager] in
             sleepManager.toggleFromKeyboardShortcut()
         }
@@ -521,15 +521,15 @@ private struct PopoverRoot: View {
             }
             if keyboardShortcut.needsPermission {
                 Button {
-                    keyboardShortcut.openAccessibilitySettings()
+                    keyboardShortcut.openPermissionSettings()
                 } label: {
-                    Text("Shortcut ←→↑↓ + Space needs Accessibility access — open Settings")
+                    Text("Shortcut ←→↑↓ + Space needs Input Monitoring — open Settings")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(Palette.orange)
                         .underline()
                 }
                 .buttonStyle(.plain)
-                .help("System Settings → Privacy & Security → Accessibility → turn on MacStayOn")
+                .help("System Settings → Privacy & Security → Input Monitoring → turn on MacStayOn")
             }
         }
         .frame(maxWidth: 900, alignment: .leading)

@@ -1,5 +1,4 @@
 import AppKit
-import ApplicationServices
 import Combine
 
 /// Detects the On/Off chord: all four arrow keys + Space held at the same time.
@@ -36,9 +35,11 @@ struct ArrowSpaceChord {
 
 /// Global ←→↑↓ + Space shortcut that toggles Stay Awake from any app.
 ///
-/// Watching keys typed in *other* apps needs Accessibility permission. The
-/// monitors are event-driven — no polling — so there is no cost while idle.
-/// The keys still reach the frontmost app (MacStayOn only listens).
+/// Uses a *listen-only* Quartz event tap, which needs **Input Monitoring**
+/// access. (It used to use NSEvent global monitors, which need Accessibility —
+/// on current macOS only assistive apps can be added to that list, so the
+/// shortcut could never be approved.) Event-driven, no polling; the keys still
+/// reach the frontmost app because a listen-only tap cannot swallow them.
 final class KeyboardShortcutController: ObservableObject {
     @Published private(set) var needsPermission = false
 
@@ -47,69 +48,100 @@ final class KeyboardShortcutController: ObservableObject {
     private var chord = ArrowSpaceChord { keyCode in
         CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(keyCode))
     }
-    private var globalMonitor: Any?
-    private var localMonitor: Any?
+    private var eventTap: CFMachPort?
+    private var runLoopSource: CFRunLoopSource?
     private var permissionTimer: Timer?
-    private static let promptedKey = "macStayOnShortcutPermissionPrompted"
+    private static let promptedKey = "macStayOnInputMonitoringPrompted"
 
     func start() {
-        // Our own panel (global monitors never see this app's events).
-        if localMonitor == nil {
-            localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
-                self?.handle(event)
-                return event
-            }
-        }
         refreshPermission(promptIfNeeded: true)
     }
 
     /// Re-check after the user may have granted access in System Settings.
     func refreshPermission(promptIfNeeded: Bool = false) {
+        guard eventTap == nil else {
+            needsPermission = false
+            return
+        }
         let defaults = UserDefaults.standard
-        let shouldPrompt = promptIfNeeded && !defaults.bool(forKey: Self.promptedKey)
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: shouldPrompt] as CFDictionary
-        let trusted = AXIsProcessTrustedWithOptions(options)
-        if shouldPrompt { defaults.set(true, forKey: Self.promptedKey) }
-
-        needsPermission = !trusted
-        if trusted {
+        if !CGPreflightListenEventAccess(), promptIfNeeded, !defaults.bool(forKey: Self.promptedKey) {
+            defaults.set(true, forKey: Self.promptedKey)
+            // Shows the system prompt and adds MacStayOn (switched off) to the
+            // Input Monitoring list, so the user only has to flip it on.
+            _ = CGRequestListenEventAccess()
+        }
+        // Creating the tap is the real test: it fails until access is granted.
+        if installEventTap() {
+            needsPermission = false
             permissionTimer?.invalidate()
             permissionTimer = nil
-            installGlobalMonitor()
-        } else if permissionTimer == nil {
-            // Notice a grant without a relaunch; stops as soon as access is given.
-            let timer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
-                self?.refreshPermission()
+        } else {
+            needsPermission = true
+            if permissionTimer == nil {
+                // Notice a grant without a relaunch; stops as soon as the tap exists.
+                let timer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
+                    self?.refreshPermission()
+                }
+                timer.tolerance = 2
+                RunLoop.main.add(timer, forMode: .common)
+                permissionTimer = timer
             }
-            timer.tolerance = 2
-            RunLoop.main.add(timer, forMode: .common)
-            permissionTimer = timer
         }
     }
 
-    /// Opens System Settings → Privacy & Security → Accessibility.
-    func openAccessibilitySettings() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+    /// Opens System Settings → Privacy & Security → Input Monitoring.
+    func openPermissionSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent") {
             NSWorkspace.shared.open(url)
         }
     }
 
-    private func installGlobalMonitor() {
-        guard globalMonitor == nil else { return }
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
-            self?.handle(event)
+    private func installEventTap() -> Bool {
+        if eventTap != nil { return true }
+        let mask = (CGEventMask(1) << CGEventType.keyDown.rawValue) | (CGEventMask(1) << CGEventType.keyUp.rawValue)
+        guard let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .tailAppendEventTap,
+            options: .listenOnly,
+            eventsOfInterest: mask,
+            callback: { _, type, event, userInfo in
+                if let userInfo {
+                    let controller = Unmanaged<KeyboardShortcutController>.fromOpaque(userInfo).takeUnretainedValue()
+                    controller.handleTapEvent(type: type, event: event)
+                }
+                return Unmanaged.passUnretained(event)
+            },
+            userInfo: Unmanaged.passUnretained(self).toOpaque()
+        ) else {
+            return false
         }
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        eventTap = tap
+        runLoopSource = source
+        return true
     }
 
-    private func handle(_ event: NSEvent) {
-        if chord.handle(isKeyUp: event.type == .keyUp, keyCode: event.keyCode) {
-            onToggle?()
+    /// Main run loop (the tap's source is on it).
+    private func handleTapEvent(type: CGEventType, event: CGEvent) {
+        switch type {
+        case .tapDisabledByTimeout, .tapDisabledByUserInput:
+            // macOS pauses taps that stall; turn it back on.
+            if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: true) }
+        case .keyDown, .keyUp:
+            let keyCode = UInt16(truncatingIfNeeded: event.getIntegerValueField(.keyboardEventKeycode))
+            if chord.handle(isKeyUp: type == .keyUp, keyCode: keyCode) {
+                onToggle?()
+            }
+        default:
+            break
         }
     }
 
     deinit {
         permissionTimer?.invalidate()
-        if let globalMonitor { NSEvent.removeMonitor(globalMonitor) }
-        if let localMonitor { NSEvent.removeMonitor(localMonitor) }
+        if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: false) }
+        if let runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes) }
     }
 }
