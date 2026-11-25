@@ -41,6 +41,9 @@ final class SleepAssertionManager: ObservableObject {
         var usesHostIntegrations: Bool
         /// How long Off waits for the root watchdog before treating lid sleep as stuck.
         var watchdogRestoreTimeout: TimeInterval = 5
+        /// Turn On's admin dialog runs on a background queue so the menu bar stays
+        /// responsive while it is up. Tests keep it inline (synchronous) unless they opt in.
+        var runsAdminOffMainThread: Bool = false
 
         static var live: Environment {
             Environment(
@@ -49,7 +52,8 @@ final class SleepAssertionManager: ObservableObject {
                 readSleepDisabled: nil,
                 runAdminCommand: nil,
                 presentCriticalAlert: nil,
-                usesHostIntegrations: true
+                usesHostIntegrations: true,
+                runsAdminOffMainThread: true
             )
         }
     }
@@ -87,6 +91,8 @@ final class SleepAssertionManager: ObservableObject {
     @Published private(set) var darkenDisplay: Bool
     /// Heat/safety ack shown inside the menu popover before admin/Touch ID.
     @Published private(set) var pendingEnableConfirm: Bool = false
+    /// Turn On's admin / Touch ID dialog is up; the menu stays usable meanwhile.
+    @Published private(set) var isAwaitingAdminApproval: Bool = false
     /// Lid reopened while Stay Awake was on — choose Turn Off / Keep On in the menu.
     @Published private(set) var pendingLidOpenChoice: Bool = false
     /// Duration string for the lid-open menu prompt.
@@ -116,6 +122,7 @@ final class SleepAssertionManager: ObservableObject {
     /// Off dropped the sentinel and a background poll is waiting for the root watchdog
     /// to restore lid sleep — do not escalate to CRITICAL / admin while this is true.
     private var isAwaitingWatchdogRestore = false
+    private let adminQueue = DispatchQueue(label: "com.markdebartolo.MacStayOn.admin", qos: .userInitiated)
     private let restoreWaitQueue = DispatchQueue(label: "com.markdebartolo.MacStayOn.restore-wait", qos: .userInitiated)
     /// Quit in progress: wait for the watchdog synchronously (the app is about to exit).
     private var isTerminating = false
@@ -321,6 +328,8 @@ final class SleepAssertionManager: ObservableObject {
     /// Start Stay Awake from the menu: show inline heat/safety confirm in the popover
     /// (no center-screen alert), then admin/Touch ID on confirm.
     func requestEnableFromUser() {
+        // Admin dialog already up for a Turn On — do not start a second one.
+        if isActivating { return }
         if isEnabled {
             refreshStatusDetail()
             return
@@ -379,24 +388,68 @@ final class SleepAssertionManager: ObservableObject {
         isActivating = true
         // Invalidate guard snapshots sampled before and during this Turn On.
         stateGeneration &+= 1
-        defer {
-            stateGeneration &+= 1
-            isActivating = false
-        }
 
         lastError = nil
         sleepStuckErrorText = nil
 
-        if environment.usesHostIntegrations, let problem = Self.missingWatchdogInterpreterProblem() {
-            failActivation(message: problem, debugNote: "preflight: python3 unavailable")
+        guard let enableScriptPath = prepareActivationFiles() else {
+            endActivation()
             return
         }
+
+        // The admin dialog (Touch ID / password) can stay up for as long as the user
+        // leaves it. It used to run on the main thread and froze the whole menu bar
+        // until answered (spin report "Slow response to HID event"). Run the
+        // preflight, the dialog and the post-approval pmset/ps checks off main.
+        let usesHostIntegrations = environment.usesHostIntegrations
+        let work: () -> ActivationOutcome = { [weak self] in
+            if usesHostIntegrations, let problem = Self.missingWatchdogInterpreterProblem() {
+                return .preflightFailed(problem)
+            }
+            guard let self else { return .admin(.cancelled, sleepFlag: nil, watchdogAlive: false) }
+            let result = self.runAdmin("/bin/bash", arguments: [enableScriptPath])
+            guard case .success = result else {
+                return .admin(result, sleepFlag: nil, watchdogAlive: false)
+            }
+            return .admin(result, sleepFlag: self.readSleepDisabled(), watchdogAlive: self.isWatchdogProcessAlive())
+        }
+
+        guard environment.runsAdminOffMainThread else {
+            finishActivation(work())
+            return
+        }
+        isAwaitingAdminApproval = true
+        // Touch ID is only offered on the auth dialog when the app is frontmost.
+        NSApp?.activate(ignoringOtherApps: true)
+        adminQueue.async { [weak self] in
+            let outcome = work()
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.isAwaitingAdminApproval = false
+                self.finishActivation(outcome)
+            }
+        }
+    }
+
+    private enum ActivationOutcome {
+        case preflightFailed(String)
+        case admin(AdminResult, sleepFlag: Int?, watchdogAlive: Bool)
+    }
+
+    private func endActivation() {
+        stateGeneration &+= 1
+        isActivating = false
+    }
+
+    /// Writes the watchdog, enable script and safety-daemon staging files.
+    /// Returns the enable script path, or nil after reporting the failure.
+    private func prepareActivationFiles() -> String? {
         guard prepareStateDirectory() else {
             failActivation(
                 message: "MacStayOn's working folder (\(stateDir.path)) is not a folder owned by your account — stayed Off. Remove it and Turn On again.",
                 debugNote: "state dir unusable"
             )
-            return
+            return nil
         }
         try? FileManager.default.removeItem(at: sentinelFile)
 
@@ -412,7 +465,7 @@ final class SleepAssertionManager: ObservableObject {
                 message: "Could not prepare sleep-safety files — stayed Off. (\(error.localizedDescription))",
                 debugNote: "staging write failed: \(error)"
             )
-            return
+            return nil
         }
 
         let enableScript = PrivilegedScripts.enableScript(
@@ -430,10 +483,28 @@ final class SleepAssertionManager: ObservableObject {
                 message: "Could not prepare enable script — stayed Off. (\(error.localizedDescription))",
                 debugNote: "enable script write failed: \(error)"
             )
+            return nil
+        }
+        return enableScriptFile.path
+    }
+
+    /// Main thread: apply the result of the (possibly background) admin step.
+    private func finishActivation(_ outcome: ActivationOutcome) {
+        defer { endActivation() }
+        let adminResult: AdminResult
+        let sleepFlag: Int?
+        let watchdogAlive: Bool
+        switch outcome {
+        case .preflightFailed(let problem):
+            failActivation(message: problem, debugNote: "preflight: python3 unavailable")
             return
+        case let .admin(result, flag, alive):
+            adminResult = result
+            sleepFlag = flag
+            watchdogAlive = alive
         }
 
-        switch runAdmin("/bin/bash", arguments: [enableScriptFile.path]) {
+        switch adminResult {
         case .success:
             // Always remember restore target 0 — never persist script stdout ("watchdog_ok")
             // or a stuck SleepDisabled=1 as the value to write back later.
@@ -441,8 +512,6 @@ final class SleepAssertionManager: ObservableObject {
             // Refuse to claim On unless sleep is actually disabled and a watchdog is up.
             // Treat unreadable pmset output as failure (never assume SleepDisabled=0).
             // Bag-safety: any failed claim must restore SleepDisabled before returning Off.
-            let sleepFlag = readSleepDisabled()
-            let watchdogAlive = isWatchdogProcessAlive()
             if sleepFlag != 1 || !watchdogAlive {
                 let detail = "sleep=\(sleepFlag.map(String.init) ?? "?") watchdog=\(watchdogAlive ? "up" : "down")"
                 failActivation(
@@ -1396,12 +1465,10 @@ final class SleepAssertionManager: ObservableObject {
         let appleSource = "do shell script \(appleStringLiteral(joined)) with administrator privileges with prompt \(appleStringLiteral(prompt))"
 
         // Frontmost + Team-ID-signed builds get Touch ID on this dialog; ad-hoc often password-only.
+        // Off-main callers activate before dispatching. Never `main.sync` here: if the
+        // main thread were ever waiting on this queue it would deadlock.
         if Thread.isMainThread {
             NSApp.activate(ignoringOtherApps: true)
-        } else {
-            DispatchQueue.main.sync {
-                NSApp.activate(ignoringOtherApps: true)
-            }
         }
 
         var error: NSDictionary?

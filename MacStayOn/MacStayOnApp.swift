@@ -216,12 +216,15 @@ private struct PopoverRoot: View {
         }
         .buttonStyle(.plain)
         .keyboardShortcut(.defaultAction)
+        .disabled(sleepManager.isAwaitingAdminApproval)
+        .opacity(sleepManager.isAwaitingAdminApproval ? 0.7 : 1)
         .help(isOn ? "Restore normal sleep & screensaver" : "Stay awake with lid open or closed")
         .fixedSize()
     }
 
     private var primaryActionTitle: String {
         if isOn { return "Restore" }
+        if sleepManager.isAwaitingAdminApproval { return "Approve…" }
         return sleepManager.needsUserReEnable ? "Turn On" : "Stay Awake"
     }
 
@@ -584,6 +587,7 @@ private struct PopoverRoot: View {
     // MARK: Copy helpers
 
     private var statusHeadline: String {
+        if sleepManager.isAwaitingAdminApproval { return "Waiting for Touch ID" }
         if sleepManager.pendingEnableConfirm { return "Confirm Stay Awake" }
         if sleepManager.pendingLidOpenChoice { return "Lid opened" }
         if !isOn { return "Normal sleep" }
