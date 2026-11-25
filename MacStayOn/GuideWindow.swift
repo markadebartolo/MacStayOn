@@ -16,16 +16,19 @@ final class GuideModel: ObservableObject {
     @Published var page: GuidePage = .welcome
     @Published var moveError: String?
     @Published var safetyNet: SafetyNetPermission.Status = .notInstalled
+    @Published var autoInstall = true
 }
 
 /// The in-app walkthrough: shown on first launch, as a "what's new" screen
 /// after an update, and any time from the ? button in the menu.
+@MainActor
 final class GuideWindowController {
     private let model = GuideModel()
     private let sleepManager: SleepAssertionManager
     private let keyboardShortcut: KeyboardShortcutController
     private let launchAtLogin: LaunchAtLoginController
     private let checkForUpdates: () -> Void
+    private let autoInstall: (get: () -> Bool, set: (Bool) -> Void)
     let notifications: NotificationPermission
     private var window: NSWindow?
     private var closeObserver: NSObjectProtocol?
@@ -35,13 +38,15 @@ final class GuideWindowController {
         keyboardShortcut: KeyboardShortcutController,
         launchAtLogin: LaunchAtLoginController,
         notifications: NotificationPermission = NotificationPermission(),
-        checkForUpdates: @escaping () -> Void
+        checkForUpdates: @escaping () -> Void,
+        autoInstall: (get: () -> Bool, set: (Bool) -> Void)
     ) {
         self.sleepManager = sleepManager
         self.keyboardShortcut = keyboardShortcut
         self.launchAtLogin = launchAtLogin
         self.notifications = notifications
         self.checkForUpdates = checkForUpdates
+        self.autoInstall = autoInstall
     }
 
     func show(_ guide: LaunchGuide) {
@@ -67,6 +72,7 @@ final class GuideWindowController {
     }
 
     private func present() {
+        model.autoInstall = autoInstall.get()
         let window = self.window ?? makeWindow()
         self.window = window
         if !window.isVisible { window.center() }
@@ -104,6 +110,10 @@ final class GuideWindowController {
             actions: GuideActions(
                 moveToApplications: { [weak self] in self?.moveToApplications() },
                 checkForUpdates: checkForUpdates,
+                setAutoInstall: { [weak self] on in
+                    self?.autoInstall.set(on)
+                    self?.model.autoInstall = on
+                },
                 close: { [weak window] in window?.close() }
             )
         ))
@@ -126,6 +136,7 @@ final class GuideWindowController {
 struct GuideActions {
     let moveToApplications: () -> Void
     let checkForUpdates: () -> Void
+    let setAutoInstall: (Bool) -> Void
     let close: () -> Void
 }
 
@@ -420,12 +431,29 @@ private struct GuideView: View {
 
     private var updatesContent: some View {
         VStack(alignment: .leading, spacing: 12) {
-            StepRow(number: 1, text: "MacStayOn checks **once a day** and never installs without asking.")
-            StepRow(number: 2, text: "When one is ready, **Updates** in the menu turns into an orange **Update** button (and you get a notification, if allowed). Click it, then **Install Update**.")
-            StepRow(number: 3, text: "Updating restarts MacStayOn, which turns Stay Awake off. Turn it back on afterward. Your settings and permissions carry over.")
-            HStack {
-                Spacer()
-                Button("Check for Updates Now") { actions.checkForUpdates() }
+            StepRow(number: 1, text: "MacStayOn checks **once a day** and downloads updates in the background.")
+            StepRow(number: 2, text: "An update installs **only while Stay Awake is off**, so a session is never interrupted. It waits until you turn it off.")
+            StepRow(number: 3, text: "MacStayOn then reopens and shows what's new. Your settings and permissions carry over.")
+            HStack(spacing: 14) {
+                Toggle(isOn: Binding(
+                    get: { model.autoInstall },
+                    set: { actions.setAutoInstall($0) }
+                )) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Install updates automatically")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(model.autoInstall
+                             ? "On: nothing to do."
+                             : "Off: when one is ready, Updates in the menu turns orange. Click it to install.")
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                Spacer(minLength: 8)
+                Button("Check Now") { actions.checkForUpdates() }
             }
             .padding(.top, 4)
         }
@@ -790,31 +818,35 @@ private struct Keycap: View {
     }
 }
 
-/// The orange Update button, then Install and Relaunch.
+/// Downloads in the background, waits for Stay Awake to be off, reopens updated.
 private struct UpdateArt: View {
     var body: some View {
-        HStack(spacing: 18) {
-            HStack(spacing: 6) {
-                Image(systemName: "arrow.down.circle.fill")
-                Text("Update").fontWeight(.semibold)
-            }
-            .font(.system(size: 14))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 9)
-            .background(Capsule().fill(GuidePalette.orange))
-            Image(systemName: "arrow.right")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.6))
-            HStack(spacing: 6) {
-                Image(systemName: "arrow.clockwise")
-                Text("Install and Relaunch").fontWeight(.medium)
-            }
-            .font(.system(size: 13))
-            .foregroundStyle(GuidePalette.ink)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.white))
+        HStack(spacing: 14) {
+            stage("arrow.down.circle.fill", "Downloads")
+            arrow
+            stage("moon.zzz.fill", "Waits for Off")
+            arrow
+            stage("sparkles", "Reopens updated")
         }
+    }
+
+    private func stage(_ symbol: String, _ label: String) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: symbol)
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(GuidePalette.orange)
+                .frame(width: 56, height: 56)
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.1)))
+            Text(label)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.85))
+        }
+    }
+
+    private var arrow: some View {
+        Image(systemName: "arrow.right")
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.5))
+            .padding(.bottom, 22)
     }
 }

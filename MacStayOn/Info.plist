@@ -34,12 +34,13 @@
 	<string>KsDaXddxWo+iY0HLLe1tHic6dR6WvC+TPjTahrxxLjg=</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
-	<!-- Daily background check; user confirms install via Sparkle UI / menu Update chip. -->
+	<!-- Daily background check. Updates download automatically and install only while
+	     Stay Awake is off (UpdateInstallGate); users can turn this off in the guide. -->
 	<key>SUScheduledCheckInterval</key>
 	<integer>86400</integer>
 	<key>SUAllowsAutomaticUpdates</key>
-	<false/>
+	<true/>
 	<key>SUAutomaticallyUpdate</key>
-	<false/>
+	<true/>
 </dict>
 </plist>

@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 @main
@@ -22,6 +23,9 @@ struct MacStayOnApp: App {
     }
 }
 
+/// Runs on the main thread (AppKit delegate callbacks); marked so it can own
+/// main-actor objects like the guide window and the updater settings.
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let sleepManager = SleepAssertionManager()
     let launchAtLogin = LaunchAtLoginController()
@@ -31,8 +35,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sleepManager: sleepManager,
         keyboardShortcut: keyboardShortcut,
         launchAtLogin: launchAtLogin,
-        checkForUpdates: { Task { @MainActor in SparkleUpdateController.checkForUpdates() } }
+        checkForUpdates: { Task { @MainActor in SparkleUpdateController.checkForUpdates() } },
+        autoInstall: (
+            get: { SparkleUpdateController.installsAutomatically },
+            set: { SparkleUpdateController.installsAutomatically = $0 }
+        )
     )
+    /// A downloaded update installs only when it can't interrupt a session.
+    private(set) lazy var updateGate = UpdateInstallGate(isBusy: { [sleepManager] in
+        sleepManager.isEnabled || sleepManager.isAwaitingAdminApproval
+            || sleepManager.pendingEnableConfirm || sleepManager.pendingLidOpenChoice
+    })
+    private var updateGateWatch: AnyCancellable?
     private var isSecondCopy = false
 
     func applicationWillFinishLaunching(_ notification: Notification) {
@@ -65,6 +79,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Off / no auto admin at login — Stay Awake only if an existing session resumes.
         sleepManager.applyPersistedStateIfNeeded()
         // Sparkle daily check (Release only); menu “Check for Updates…” always available.
+        // Automatic updates wait for Stay Awake to be off. @Published fires before
+        // the value changes, so re-check on the next run loop turn.
+        SparkleUpdateController.installGate = updateGate
+        updateGateWatch = Publishers.CombineLatest(sleepManager.$isEnabled, sleepManager.$isAwaitingAdminApproval)
+            .receive(on: RunLoop.main)
+            .sink { [updateGate] _ in updateGate.stateChanged() }
         let guideWillAsk = launchGuide == .welcome || launchGuide == .resumeAfterMove
         SparkleUpdateController.startIfConfigured(askForNotifications: !guideWillAsk)
         // A glow and pull chain briefly confirm each turn on / off (shortcut included).

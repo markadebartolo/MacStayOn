@@ -53,6 +53,10 @@ enum LaunchGuideDecider {
 /// Highlights shown on the "updated" screen, newest first.
 enum WhatsNew {
     static let releases: [(version: String, notes: [String])] = [
+        ("1.5.3", [
+            "Automatic updates: new versions download in the background and install only while Stay Awake is off, so a session is never interrupted. Then MacStayOn reopens and shows what's new.",
+            "Prefer to install yourself? Turn off Install updates automatically in the guide's Updates step.",
+        ]),
         ("1.5.2", [
             "The guide's Turn On step now shows both ways in: the menu, and the ← → ↑ ↓ + Space shortcut (with whether it's ready to use).",
         ]),
