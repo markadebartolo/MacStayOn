@@ -57,6 +57,29 @@ if [ "$val" != "1" ]; then
   exit 0
 fi
 
+# Off asked for a restore (sentinel) long ago, yet sleep is still disabled: the
+# watchdog is alive but not doing its job. Restore anyway — this file can only
+# ever make the Mac sleep normally, never keep it awake.
+stale_restore_request() {
+  local dir s now mtime
+  now="$(date +%s)"
+  for dir in /tmp/MacStayOn-*; do
+    s="$dir/restore.sentinel"
+    [ -f "$s" ] || continue
+    mtime="$(stat -f %m "$s" 2>/dev/null || echo "$now")"
+    if [ $((now - mtime)) -ge 20 ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+if stale_restore_request; then
+  /usr/bin/pmset -a disablesleep 0
+  /usr/bin/logger -t MacStayOn "sleep-safety restored SleepDisabled (watchdog ignored Off request)"
+  exit 0
+fi
+
 if any_live_watchdog; then
   exit 0
 fi
