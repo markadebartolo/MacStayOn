@@ -4,7 +4,6 @@ import XCTest
 
 final class LampOverlayTests: XCTestCase {
     private final class FakePresenter: LampPresenting {
-        var onPull: (() -> Void)?
         private(set) var calls: [String] = []
         func turnOn() { calls.append("on") }
         func turnOff() { calls.append("off") }
@@ -74,27 +73,21 @@ final class LampOverlayTests: XCTestCase {
         XCTAssertEqual(presenter.calls, [])
     }
 
-    func testTogglingTheSettingWhileOnShowsOrHidesWithoutAPull() {
+    func testSwitchingTheGlowOffStopsItAndNothingPlaysUntilTheNextChange() {
         let controller = makeController()
         stayAwake.send(true)
         controller.setShowLamp(false)
-        XCTAssertEqual(presenter.calls, ["on", "hide"])
+        XCTAssertEqual(presenter.calls, ["on", "hide"], "switching it off stops a confirmation mid-play")
         XCTAssertEqual(defaults.object(forKey: LampOverlayController.showLampKey) as? Bool, false)
 
-        // Turning Off while hidden plays nothing; showing again while Off waits for On.
+        // Hidden: turning off confirms nothing.
         stayAwake.send(false)
+        XCTAssertEqual(presenter.calls, ["on", "hide"])
+        // Switching it back on is silent; the next real change confirms again.
         controller.setShowLamp(true)
         XCTAssertEqual(presenter.calls, ["on", "hide"])
         stayAwake.send(true)
         XCTAssertEqual(presenter.calls, ["on", "hide", "on"])
-    }
-
-    func testPullChainClickReachesTheApp() {
-        let controller = makeController()
-        var pulled = 0
-        controller.onPull = { pulled += 1 }
-        presenter.onPull?()
-        XCTAssertEqual(pulled, 1)
     }
 
     func testPullChainClickIsAValidWav() throws {
@@ -113,7 +106,7 @@ final class LampOverlayTests: XCTestCase {
         XCTAssertLessThan(sound.duration, 0.2)
     }
 
-    func testKnobTargetSitsAtTheEndOfTheChain() {
+    func testChainGeometryHidesFullyBehindTheMenuBar() {
         let geometry = LampGeometry(topInset: 37)
         XCTAssertGreaterThan(geometry.knobCenter.y, geometry.topInset + geometry.chainVisibleLength)
         XCTAssertLessThan(geometry.knobCenter.y + geometry.knobSize.height, geometry.height)

@@ -67,10 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Sparkle daily check (Release only); menu “Check for Updates…” always available.
         let guideWillAsk = launchGuide == .welcome || launchGuide == .resumeAfterMove
         SparkleUpdateController.startIfConfigured(askForNotifications: !guideWillAsk)
-        // While On, a glow and pull chain hang from the menu bar; the chain turns Off.
-        lamp.onPull = { [sleepManager] in
-            sleepManager.setEnabled(false)
-        }
+        // A glow and pull chain briefly confirm each turn on / off (shortcut included).
         lamp.bind(isEnabled: sleepManager.$isEnabled.eraseToAnyPublisher())
         // ←→↑↓ + Space toggles Stay Awake from any app (needs Input Monitoring).
         keyboardShortcut.onToggle = { [sleepManager, lamp] in
@@ -314,7 +311,7 @@ private struct PopoverRoot: View {
             .controlSize(.mini)
         }
         .fixedSize()
-        .help("While Stay Awake is on, a warm glow and pull chain hang from the menu bar. Click the chain to turn off.")
+        .help("A quick glow and pull-chain confirmation at the top of the screen whenever Stay Awake turns on or off.")
     }
 
     private var guardControl: some View {

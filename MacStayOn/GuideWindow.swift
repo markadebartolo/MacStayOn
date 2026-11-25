@@ -231,7 +231,7 @@ private struct GuideView: View {
         switch page {
         case .welcome: return "Welcome to MacStayOn"
         case .turnOn: return "Turn Stay Awake on"
-        case .glow: return "On, with a warm glow"
+        case .glow: return "A glow confirms it"
         case .shortcut: return "Keyboard shortcut"
         case .permissions: return "Permissions"
         case .updates: return "Staying up to date"
@@ -308,11 +308,12 @@ private struct GuideView: View {
 
     private var glowContent: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Prose("While Stay Awake is on, the moon becomes a **sun**, and a warm glow with a pull chain hangs from the menu bar.")
+            Prose("When Stay Awake turns on, a pull chain drops from under the menu bar, gets a tug, and a warm glow flickers on, then it tucks away. Turning off shows the tug and the glow going out. It's a quick sign that it worked, handy with the keyboard shortcut.")
+            Prose("The rest of the time, the menu bar icon shows the state: **sun** is on, **moon** is off.")
+                .foregroundStyle(.secondary)
             Text("To turn off (no password needed):")
                 .font(.system(size: 13, weight: .semibold))
             LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], spacing: 8) {
-                Chip(symbol: "hand.point.up.left.fill", text: "Click the **pull knob**")
                 Chip(symbol: "moon.zzz.fill", text: "**Restore** in the menu")
                 Chip(symbol: "keyboard", text: "Hold **← → ↑ ↓ + Space**")
                 Chip(symbol: "power", text: "**Quit** MacStayOn")
@@ -704,7 +705,7 @@ private struct TurnOnArt: View {
     }
 }
 
-/// The real glow and pull chain, lit.
+/// The real on/off confirmation, caught while lit.
 private struct GlowArt: View {
     @StateObject private var model: LampModel = {
         let model = LampModel()
