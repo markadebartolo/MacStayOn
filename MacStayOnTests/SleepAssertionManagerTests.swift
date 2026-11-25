@@ -443,6 +443,41 @@ final class SleepAssertionManagerTests: XCTestCase {
         XCTAssertNil(manager.lastError)
     }
 
+    /// The stuck-Off CRITICAL state held a PreventUserIdleSystemSleep assertion
+    /// (`.userInitiated` includes idleSystemSleepDisabled) — the app itself kept the
+    /// Mac awake for hours while warning that the Mac might stay awake.
+    func testStuckOffStateDoesNotItselfPreventIdleSleep() {
+        let options = SleepAssertionManager.stuckSleepActivityOptions
+        XCTAssertFalse(
+            options.contains(.idleSystemSleepDisabled),
+            "the stuck-Off activity must not hold a PreventUserIdleSystemSleep assertion"
+        )
+        XCTAssertFalse(options.contains(.idleDisplaySleepDisabled))
+    }
+
+    /// Background guard passes must never reopen the blocking admin dialog on their
+    /// own after the user dismissed it — that loop froze the menu bar for hours.
+    func testGuardNeverReopensAdminPromptAfterCancel() {
+        system.restoreBehavior = .cancel
+        let manager = makeEnabledManager()
+        system.killWatchdog()
+        manager.setEnabled(false)
+        XCTAssertEqual(system.restoreCallCount, 1)
+
+        for _ in 0..<5 {
+            guardEvaluation(manager, sleepDisabled: 1, watchdogAlive: false)
+        }
+        XCTAssertEqual(system.restoreCallCount, 1, "guard re-prompted for admin by itself")
+        XCTAssertEqual(system.criticalAlertCount, 1)
+        XCTAssertTrue(manager.isSleepStuckWhileOff)
+
+        // Tapping the banner still restores.
+        system.restoreBehavior = .succeed
+        manager.requestRestoreSleepNow()
+        XCTAssertEqual(system.restoreCallCount, 2)
+        XCTAssertFalse(manager.isSleepStuckWhileOff)
+    }
+
     func testCanceledAdminRestoreKeepsTheWarningUp() {
         system.restoreBehavior = .cancel
         let manager = makeEnabledManager()
