@@ -37,7 +37,7 @@ final class LampOverlayTests: XCTestCase {
 
     func testLampLightsOnTurnOnAndPullsOffOnTurnOff() {
         let controller = makeController()
-        XCTAssertTrue(controller.showLamp, "the lamp is on by default")
+        XCTAssertTrue(controller.showLamp, "the glow is on by default")
         XCTAssertEqual(presenter.calls, [], "nothing shows while Off")
 
         stayAwake.send(true)
@@ -113,12 +113,14 @@ final class LampOverlayTests: XCTestCase {
         XCTAssertLessThan(sound.duration, 0.2)
     }
 
-    func testKnobTargetSitsOnTheChainBelowTheShade() {
+    func testKnobTargetSitsAtTheEndOfTheChain() {
         let geometry = LampGeometry(topInset: 37)
-        XCTAssertGreaterThan(geometry.knobCenter.y, geometry.rimY + geometry.chainVisibleLength)
+        XCTAssertGreaterThan(geometry.knobCenter.y, geometry.topInset + geometry.chainVisibleLength)
         XCTAssertLessThan(geometry.knobCenter.y + geometry.knobSize.height, geometry.height)
         XCTAssertEqual(geometry.knobCenter.x, geometry.chainX)
         // The chain's hidden length covers the whole pull, so its top never shows.
         XCTAssertGreaterThan(geometry.chainHiddenLength, geometry.pullDistance)
+        // Drawn all the way up, the knob is back behind the menu bar.
+        XCTAssertLessThan(geometry.knobCenter.y + geometry.knobSize.height / 2 - geometry.dropDistance, geometry.topInset)
     }
 }

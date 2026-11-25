@@ -2,22 +2,22 @@ import AppKit
 import Combine
 import SwiftUI
 
-/// Shows and animates the hanging lamp. Split out so the On/Off logic in
+/// Shows and animates the glow and pull chain. Split out so the On/Off logic in
 /// `LampOverlayController` can be tested without windows.
 protocol LampPresenting: AnyObject {
-    /// The user clicked the lamp's pull chain.
+    /// The user clicked the pull chain.
     var onPull: (() -> Void)? { get set }
-    /// Drop the lamp in, pull the chain, light it.
+    /// Drop the chain down, pull it, light the glow.
     func turnOn()
-    /// Pull the chain, click the light off, raise the lamp away.
+    /// Pull the chain, click the glow off, draw the chain back up.
     func turnOff()
-    /// Take the lamp away without the pull (the user hid it).
+    /// Take it all away without the pull (the user hid it).
     func hide()
 }
 
-/// While Stay Awake is On, a lamp hangs from the top of the screen. Turning
-/// Stay Awake off (shortcut, menu, or clicking the chain) pulls the chain and
-/// clicks the light off.
+/// While Stay Awake is On, a warm glow spills from under the menu bar with a
+/// pull chain hanging through it. Turning Stay Awake off (shortcut, menu, or
+/// clicking the chain) pulls the chain and clicks the light off.
 final class LampOverlayController: ObservableObject {
     static let showLampKey = "macStayOnShowLamp"
 
@@ -41,7 +41,7 @@ final class LampOverlayController: ObservableObject {
     }
 
     /// Follow Stay Awake. `isEnabled` only turns true once Turn On has fully
-    /// succeeded, so the lamp never lights for a canceled or failed attempt.
+    /// succeeded, so the glow never lights for a canceled or failed attempt.
     func bind(isEnabled: AnyPublisher<Bool, Never>) {
         subscription = isEnabled
             .removeDuplicates()
@@ -74,9 +74,9 @@ final class LampOverlayController: ObservableObject {
 
 // MARK: - Windows
 
-/// Two borderless panels at the top-right of the screen: the lamp itself, which
-/// clicks pass straight through, and a small one over the pull knob that takes
-/// the click. Both float above full-screen apps and follow every Space.
+/// Two borderless panels at the top-right of the screen: the glow and chain,
+/// which clicks pass straight through, and a small one over the pull knob that
+/// takes the click. Both float above full-screen apps and follow every Space.
 final class LampWindowPresenter: LampPresenting {
     var onPull: (() -> Void)?
 
@@ -131,34 +131,35 @@ final class LampWindowPresenter: LampPresenting {
             return
         }
 
-        // Start above the screen edge, dark — unless it is already hanging there.
+        // Start with the chain drawn up behind the menu bar and no glow —
+        // unless it is already hanging there.
         if model.opacity < 0.01 {
             model.drop = -geometry.dropDistance
             model.lit = 0
+            model.opacity = 1
         }
         model.pull = 0
         model.sway = 0
         lampPanel?.orderFrontRegardless()
         // Let the starting state render once so the drop animates from it.
         after(0.02, token) {
-            withAnimation(.spring(response: 0.36, dampingFraction: 0.74)) {
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.7)) {
                 self.model.drop = 0
-                self.model.opacity = 1
             }
         }
-        after(0.4, token) {
+        after(0.34, token) {
             self.pullChain(token) {
-                // The bulb catches, flickers once, then holds.
-                withAnimation(.easeOut(duration: 0.03)) { self.model.lit = 1 }
-                self.after(0.05, token) {
-                    withAnimation(.easeIn(duration: 0.03)) { self.model.lit = 0.4 }
+                // The glow catches, flickers once, then holds.
+                withAnimation(.easeOut(duration: 0.05)) { self.model.lit = 1 }
+                self.after(0.06, token) {
+                    withAnimation(.easeIn(duration: 0.04)) { self.model.lit = 0.45 }
                 }
-                self.after(0.09, token) {
-                    withAnimation(.easeOut(duration: 0.14)) { self.model.lit = 1 }
+                self.after(0.11, token) {
+                    withAnimation(.easeOut(duration: 0.18)) { self.model.lit = 1 }
                 }
             }
         }
-        after(0.75, token) { self.showKnob() }
+        after(0.7, token) { self.showKnob() }
     }
 
     func turnOff() {
@@ -179,15 +180,15 @@ final class LampWindowPresenter: LampPresenting {
         }
 
         pullChain(token) {
-            withAnimation(.easeIn(duration: 0.04)) { self.model.lit = 0 }
+            withAnimation(.easeIn(duration: 0.12)) { self.model.lit = 0 }
         }
-        after(0.5, token) {
-            withAnimation(.easeIn(duration: 0.28)) {
+        // Then the chain draws back up under the menu bar.
+        after(0.45, token) {
+            withAnimation(.easeIn(duration: 0.22)) {
                 self.model.drop = -self.geometry.dropDistance
-                self.model.opacity = 0
             }
         }
-        after(0.82, token) { self.orderOutPanels() }
+        after(0.72, token) { self.orderOutPanels() }
     }
 
     func hide() {
@@ -239,12 +240,12 @@ final class LampWindowPresenter: LampPresenting {
 
     private func layoutPanels() {
         guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
-        // Menu bar (or notch) height, so the cord seems to come out from under it.
+        // Menu bar (or notch) height, so the chain seems to come out from under it.
         let menuBar = max(24, screen.frame.maxY - screen.visibleFrame.maxY, screen.safeAreaInsets.top)
         let newGeometry = LampGeometry(topInset: menuBar)
         let size = CGSize(width: newGeometry.width, height: newGeometry.height)
         // Top-right, clear of the centered notch and the MacStayOn menu panel.
-        let origin = NSPoint(x: screen.frame.maxX - size.width - 96, y: screen.frame.maxY - size.height)
+        let origin = NSPoint(x: screen.frame.maxX - size.width - 44, y: screen.frame.maxY - size.height)
 
         let lamp = lampPanel ?? Self.makePanel(clickThrough: true)
         if lampPanel == nil || newGeometry != geometry {

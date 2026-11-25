@@ -37,7 +37,7 @@
 - **In-menu confirms** — heat warning and lid-open “turn off?” stay in the panel (fewer separate prompts)
 - **Session chip** — elapsed time of the current or last Stay Awake session
 - **Keyboard shortcut** — hold **← → ↑ ↓ + Space** together, from any app, to turn Stay Awake on (Touch ID) or off. Needs **Input Monitoring** access (System Settings → Privacy & Security → Input Monitoring); MacStayOn only listens — the keys still reach your app
-- **Pull-chain lamp** — while Stay Awake is on, a small 3D pendant lamp hangs from the menu bar at the top right of the screen, glowing warm. Turning Stay Awake off (shortcut, menu, or clicking the lamp's pull chain) pulls the chain, clicks the light off, and the lamp lifts away. Clicks pass through everything but the pull knob; hide it with the **Lamp** switch
+- **Glow + pull chain** — while Stay Awake is on, a warm glow spills from under the menu bar at the top right of the screen, with a brass ball chain hanging through it. Turning Stay Awake off (shortcut, menu, or clicking the chain's pull) tugs the chain, clicks the glow off, and the chain draws back up. Clicks pass through everything but the pull knob; hide it with the **Glow** switch
 - **Touch ID admin** — Developer ID build can offer Touch ID for the one-time `pmset` approve
 - **Bag-safe Off** — Off / Quit always restore normal lid sleep (`SleepDisabled=0`) and remove the sleep-safety LaunchDaemon so nothing durable keeps the Mac force-awake
 - **In-app updates** — **Updates** in the menu panel (Sparkle + GitHub Releases appcast); quiet daily check
@@ -86,7 +86,7 @@ Click the menu-bar icon for a **compact horizontal bar** centered under the menu
 | **Brand / status** | MacStayOn **ON** / **OFF**, short sleep line, chip + AC/battery |
 | **Primary button** | **Stay Awake** (orange) or **Restore** when on — works lid open or closed |
 | **Darken** | Black overlay while Stay Awake is on (Mac stays awake; no display sleep). Key/click restores |
-| **Lamp** | Show the hanging lamp while Stay Awake is on (default on). Click its pull chain to turn Stay Awake off |
+| **Glow** | Show the glow and pull chain while Stay Awake is on (default on). Click the chain's pull to turn Stay Awake off |
 | **Heat & batt.** | Toggle + floor **10–50%** battery. Also turns off if macOS reports **serious heat** |
 | **At login** | Open MacStayOn when you log in (System Settings → Login Items). Stay Awake stays **Off** until you turn it on |
 | **Lid-close flash** | While On, closing the lid past ~85° pulses the screen orange until the lid is fully shut (or reopened). Needs a lid-angle sensor; skipped quietly on Macs without one. |

@@ -347,7 +347,7 @@ final class SleepAssertionManager: ObservableObject {
     func toggleFromKeyboardShortcut() {
         guard !isInertSecondaryInstance, !isActivating else { return }
         if isEnabled {
-            // The app plays the Off sound (the lamp's pull-chain click, or a pop).
+            // The app plays the Off sound (the pull-chain click, or a pop).
             setEnabled(false)
             return
         }

@@ -53,7 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sleepManager.applyPersistedStateIfNeeded()
         // Sparkle daily check (Release only); menu “Check for Updates…” always available.
         SparkleUpdateController.startIfConfigured()
-        // While On, a lamp hangs from the top of the screen; its pull chain turns Off.
+        // While On, a glow and pull chain hang from the menu bar; the chain turns Off.
         lamp.onPull = { [sleepManager] in
             sleepManager.setEnabled(false)
         }
@@ -62,7 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         keyboardShortcut.onToggle = { [sleepManager, lamp] in
             let wasOn = sleepManager.isEnabled
             sleepManager.toggleFromKeyboardShortcut()
-            // With the lamp shown, its pull-chain click is the Off sound.
+            // With the glow shown, its pull-chain click is the Off sound.
             if wasOn, !sleepManager.isEnabled, !lamp.showLamp {
                 NSSound(named: "Pop")?.play()
             }
@@ -280,7 +280,7 @@ private struct PopoverRoot: View {
     private var lampControl: some View {
         HStack(spacing: 6) {
             VStack(alignment: .leading, spacing: 1) {
-                Text("Lamp")
+                Text("Glow")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Palette.text)
                 Text(lamp.showLamp ? "Shown" : "Hidden")
@@ -296,7 +296,7 @@ private struct PopoverRoot: View {
             .controlSize(.mini)
         }
         .fixedSize()
-        .help("While Stay Awake is on, a lamp hangs at the top of the screen. Click its pull chain to turn off.")
+        .help("While Stay Awake is on, a warm glow and pull chain hang from the menu bar. Click the chain to turn off.")
     }
 
     private var guardControl: some View {
