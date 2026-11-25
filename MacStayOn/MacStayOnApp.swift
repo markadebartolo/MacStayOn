@@ -12,7 +12,8 @@ struct MacStayOnApp: App {
                 analytics: appDelegate.sleepManager.analytics,
                 launchAtLogin: appDelegate.launchAtLogin,
                 keyboardShortcut: appDelegate.keyboardShortcut,
-                lamp: appDelegate.lamp
+                lamp: appDelegate.lamp,
+                openGuide: { [appDelegate] in appDelegate.guide.showGuide() }
             )
         } label: {
             MenuBarLabel(sleepManager: appDelegate.sleepManager)
@@ -26,6 +27,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let launchAtLogin = LaunchAtLoginController()
     let keyboardShortcut = KeyboardShortcutController()
     let lamp = LampOverlayController()
+    private(set) lazy var guide = GuideWindowController(
+        sleepManager: sleepManager,
+        keyboardShortcut: keyboardShortcut,
+        launchAtLogin: launchAtLogin,
+        checkForUpdates: { Task { @MainActor in SparkleUpdateController.checkForUpdates() } }
+    )
+    private var isSecondCopy = false
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         // Two copies (dist + Debug) share /tmp state and can fight the watchdog.
@@ -33,11 +41,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // This copy must not run any Off/quit cleanup: it would drop the restore
             // sentinel and switch the already-running copy's Stay Awake off.
             sleepManager.becomeInertSecondaryInstance()
+            isSecondCopy = true
             NSApp.terminate(nil)
         }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard !isSecondCopy else { return }
+        // Decide before anything else writes settings, so a first install still looks like one.
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+        let launchGuide = LaunchGuideDecider.onLaunch(currentVersion: version, defaults: .standard)
         // Keep menu-bar-only presentation; accidental .regular activation
         // can leave a full app menu and confuse MenuBarExtra window opens.
         if NSApp.activationPolicy() != .accessory {
@@ -68,6 +81,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         keyboardShortcut.start()
+        // First launch: the walkthrough. After an update: what's new.
+        guide.show(launchGuide)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -102,6 +117,7 @@ private struct PopoverRoot: View {
     @ObservedObject var launchAtLogin: LaunchAtLoginController
     @ObservedObject var keyboardShortcut: KeyboardShortcutController
     @ObservedObject var lamp: LampOverlayController
+    let openGuide: () -> Void
     @ObservedObject private var updateReminders = SparkleUpdateReminderStore.shared
 
     private var isOn: Bool { sleepManager.isEnabled }
@@ -165,6 +181,7 @@ private struct PopoverRoot: View {
             thinDivider
             sessionChip
             thinDivider
+            guideControl
             updateControl
             thinDivider
             quitControl
@@ -428,6 +445,20 @@ private struct PopoverRoot: View {
         .accessibilityLabel(updateReminders.pendingUpdateDisplayVersion == nil
                             ? "Check for Updates"
                             : "Update MacStayOn")
+    }
+
+    private var guideControl: some View {
+        Button(action: openGuide) {
+            Image(systemName: "questionmark")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(Palette.secondary)
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(Palette.chip))
+        }
+        .buttonStyle(.plain)
+        .help("Guide: setup, the glow, the keyboard shortcut, and updates")
+        .accessibilityLabel("Guide")
+        .fixedSize()
     }
 
     private var quitControl: some View {
