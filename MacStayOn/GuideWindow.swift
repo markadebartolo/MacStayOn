@@ -263,7 +263,7 @@ private struct GuideView: View {
         VStack(alignment: .leading, spacing: 14) {
             Prose("MacStayOn keeps your Mac awake with the lid open or closed, so agents, builds and downloads keep running. Turn it off and normal sleep comes back.")
             InfoRow(symbol: "moon.zzz.fill", tint: .secondary,
-                    text: "**It lives in your menu bar.** Look for the moon near the clock. There's no Dock icon or window.")
+                    text: "**It lives in your menu bar and the Dock.** Click the moon near the clock, or MacStayOn in the Dock, to open the menu.")
             installRow
         }
     }

@@ -18,7 +18,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/macOS-13%2B-000000?style=flat-square&logo=apple&logoColor=white" alt="macOS 13+">
   <img src="https://img.shields.io/badge/Apple%20Silicon-arm64-000000?style=flat-square&logo=apple&logoColor=white" alt="Apple Silicon arm64">
-  <img src="https://img.shields.io/badge/menu%20bar-only-F18636?style=flat-square" alt="Menu bar only">
+  <img src="https://img.shields.io/badge/menu%20bar-%2B%20Dock-F18636?style=flat-square" alt="Menu bar and Dock">
   <img src="https://img.shields.io/badge/notarized-Developer%20ID-007AFF?style=flat-square&logo=apple&logoColor=white" alt="Notarized">
   <img src="https://img.shields.io/badge/updates-automatic-2E8B57?style=flat-square" alt="Automatic updates">
 </p>
@@ -47,7 +47,7 @@ Close the lid and keep working. **Cursor, Claude, builds and other long-running 
 - **Darken.** Optional black cover while on; the Mac stays awake. Any key or click brings the screen back.
 - **Lid-close flash and lid-open check.** While on, the screen pulses orange as you close the lid (on Macs with a lid-angle sensor). When you open it again, MacStayOn asks whether to turn off or keep going.
 - **Bag-safe Off.** Turning off or quitting always restores normal lid sleep and removes MacStayOn's background safety helper, so nothing is left keeping the Mac awake.
-- **Menu bar only.** No Dock icon and no windows (apart from the guide). Nothing is sent to a server.
+- **Menu bar and Dock.** The moon (sun when on) in the menu bar, and the icon in the Dock: click it to open the menu, or right-click for **Stay Awake…**, **Turn Off** and the **Guide**. Nothing is sent to a server.
 
 <p align="center">
   <img src="docs/media/macstayon-glow.png" alt="The glow confirmation: a brass pull chain hanging from the menu bar in a warm glow" width="240">
@@ -96,7 +96,7 @@ MacStayOn asks for as little as it can. The guide's **Permissions** step shows t
 
 ## The menu
 
-Click the moon (sun when on) for a compact strip centered at the top of the screen.
+Click the moon (sun when on) in the menu bar, or the MacStayOn icon in the Dock, for a compact strip centered at the top of the screen.
 
 | Control | What it does |
 |--------|----------------|
