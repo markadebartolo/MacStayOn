@@ -53,6 +53,10 @@ enum LaunchGuideDecider {
 /// Highlights shown on the "updated" screen, newest first.
 enum WhatsNew {
     static let releases: [(version: String, notes: [String])] = [
+        ("1.5.1", [
+            "The glow and pull chain are now a quick confirmation: they show while Stay Awake turns on or off, then tuck away, instead of staying on screen.",
+            "To turn off, use Restore in the menu, the ← → ↑ ↓ + Space shortcut, or Quit.",
+        ]),
         ("1.5.0", [
             "A built-in guide walks you through setup, permissions, the keyboard shortcut and updates. Open it any time with the ? button in the menu.",
             "The Permissions step shows what MacStayOn may ask for and why, with live status and a button to fix each one.",
@@ -60,7 +64,7 @@ enum WhatsNew {
             "If MacStayOn is running from Downloads, it offers to move itself to Applications.",
         ]),
         ("1.4.0", [
-            "While Stay Awake is on, a warm glow and pull chain hang from the menu bar. Click the chain's knob to turn off.",
+            "A warm glow and pull chain drop from the menu bar to confirm when Stay Awake turns on or off.",
         ]),
     ]
 

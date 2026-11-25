@@ -2,32 +2,26 @@ import AppKit
 import Combine
 import SwiftUI
 
-/// Shows and animates the glow and pull chain. Split out so the On/Off logic in
+/// Plays the on/off confirmation. Split out so the On/Off logic in
 /// `LampOverlayController` can be tested without windows.
 protocol LampPresenting: AnyObject {
-    /// The user clicked the pull chain.
-    var onPull: (() -> Void)? { get set }
-    /// Drop the chain down, pull it, light the glow.
+    /// Chain drops, gets a tug, the glow flickers on — then it all tucks away.
     func turnOn()
-    /// Pull the chain, click the glow off, draw the chain back up.
+    /// Chain drops with the glow lit, gets a tug, the glow goes out — then it tucks away.
     func turnOff()
-    /// Take it all away without the pull (the user hid it).
+    /// Stop anything that is playing (the user switched the glow off).
     func hide()
 }
 
-/// While Stay Awake is On, a warm glow spills from under the menu bar with a
-/// pull chain hanging through it. Turning Stay Awake off (shortcut, menu, or
-/// clicking the chain) pulls the chain and clicks the light off.
+/// A quick confirmation that Stay Awake really turned on or off — handy with
+/// the keyboard shortcut, where there is no menu open to look at. A pull chain
+/// drops from under the menu bar, gets a tug, and a warm glow comes on (or
+/// goes out); then it tucks away. It is a signal only: nothing stays on
+/// screen and there is nothing to click.
 final class LampOverlayController: ObservableObject {
     static let showLampKey = "macStayOnShowLamp"
 
     @Published private(set) var showLamp: Bool
-
-    /// Clicking the pull chain — wired to "turn Stay Awake off".
-    var onPull: (() -> Void)? {
-        get { presenter.onPull }
-        set { presenter.onPull = newValue }
-    }
 
     private let presenter: LampPresenting
     private let defaults: UserDefaults
@@ -41,7 +35,7 @@ final class LampOverlayController: ObservableObject {
     }
 
     /// Follow Stay Awake. `isEnabled` only turns true once Turn On has fully
-    /// succeeded, so the glow never lights for a canceled or failed attempt.
+    /// succeeded, so the glow never confirms a canceled or failed attempt.
     func bind(isEnabled: AnyPublisher<Bool, Never>) {
         subscription = isEnabled
             .removeDuplicates()
@@ -52,10 +46,7 @@ final class LampOverlayController: ObservableObject {
         guard show != showLamp else { return }
         showLamp = show
         defaults.set(show, forKey: Self.showLampKey)
-        guard isStayAwakeOn else { return }
-        if show {
-            presenter.turnOn()
-        } else {
+        if !show {
             presenter.hide()
         }
     }
@@ -72,19 +63,20 @@ final class LampOverlayController: ObservableObject {
     }
 }
 
-// MARK: - Windows
+// MARK: - Window
 
-/// Two borderless panels at the top-right of the screen: the glow and chain,
-/// which clicks pass straight through, and a small one over the pull knob that
-/// takes the click. Both float above full-screen apps and follow every Space.
+/// A borderless, click-through panel at the top right of the screen that
+/// floats above full-screen apps and follows every Space. It is only on
+/// screen while a confirmation plays.
 final class LampWindowPresenter: LampPresenting {
-    var onPull: (() -> Void)?
+    /// How long the lit glow stays after turning on, before it tucks away.
+    static let holdAfterOn: TimeInterval = 1.2
+    /// How long the dark chain stays after turning off.
+    static let holdAfterOff: TimeInterval = 0.35
 
     private let model = LampModel()
     private var geometry = LampGeometry(topInset: 30)
-    private var lampPanel: NSPanel?
-    private var knobPanel: NSPanel?
-    private var isShowing = false
+    private var panel: NSPanel?
     /// Bumped by every turnOn/turnOff/hide so steps from an older sequence never run.
     private var generation = 0
     private var screenObserver: NSObjectProtocol?
@@ -95,8 +87,8 @@ final class LampWindowPresenter: LampPresenting {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            guard let self, self.isShowing else { return }
-            self.layoutPanels()
+            guard let self, self.panel?.isVisible == true else { return }
+            self.layoutPanel()
         }
     }
 
@@ -111,43 +103,12 @@ final class LampWindowPresenter: LampPresenting {
     }
 
     func turnOn() {
-        generation &+= 1
-        let token = generation
-        isShowing = true
-        layoutPanels()
-        knobPanel?.orderOut(nil)
-
+        let token = begin()
         if reduceMotion {
-            model.drop = 0
-            model.pull = 0
-            model.sway = 0
-            lampPanel?.orderFrontRegardless()
-            withAnimation(.easeOut(duration: 0.3)) {
-                model.opacity = 1
-                model.lit = 1
-            }
-            PullChainClick.play()
-            after(0.3, token) { self.showKnob() }
+            fadeConfirmation(token, lit: true)
             return
         }
-
-        // Start with the chain drawn up behind the menu bar and no glow —
-        // unless it is already hanging there.
-        if model.opacity < 0.01 {
-            model.drop = -geometry.dropDistance
-            model.lit = 0
-            model.opacity = 1
-        }
-        model.pull = 0
-        model.sway = 0
-        lampPanel?.orderFrontRegardless()
-        // Let the starting state render once so the drop animates from it.
-        after(0.02, token) {
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.7)) {
-                self.model.drop = 0
-            }
-        }
-        after(0.34, token) {
+        dropChain(token) {
             self.pullChain(token) {
                 // The glow catches, flickers once, then holds.
                 withAnimation(.easeOut(duration: 0.05)) { self.model.lit = 1 }
@@ -157,47 +118,64 @@ final class LampWindowPresenter: LampPresenting {
                 self.after(0.11, token) {
                     withAnimation(.easeOut(duration: 0.18)) { self.model.lit = 1 }
                 }
+                self.after(0.11 + Self.holdAfterOn, token) { self.tuckAway(token) }
             }
         }
-        after(0.7, token) { self.showKnob() }
     }
 
     func turnOff() {
-        guard isShowing else { return }
-        generation &+= 1
-        let token = generation
-        isShowing = false
-        knobPanel?.orderOut(nil)
-
+        let token = begin()
         if reduceMotion {
-            PullChainClick.play()
-            withAnimation(.easeIn(duration: 0.2)) {
-                model.lit = 0
-                model.opacity = 0
-            }
-            after(0.25, token) { self.orderOutPanels() }
+            fadeConfirmation(token, lit: false)
             return
         }
-
-        pullChain(token) {
-            withAnimation(.easeIn(duration: 0.12)) { self.model.lit = 0 }
-        }
-        // Then the chain draws back up under the menu bar.
-        after(0.45, token) {
-            withAnimation(.easeIn(duration: 0.22)) {
-                self.model.drop = -self.geometry.dropDistance
+        // Show it as it was (lit), then tug it off.
+        withAnimation(.easeOut(duration: 0.2)) { model.lit = 1 }
+        dropChain(token) {
+            self.pullChain(token) {
+                withAnimation(.easeIn(duration: 0.12)) { self.model.lit = 0 }
+                self.after(Self.holdAfterOff, token) { self.tuckAway(token) }
             }
         }
-        after(0.72, token) { self.orderOutPanels() }
     }
 
     func hide() {
         generation &+= 1
         let token = generation
-        isShowing = false
-        knobPanel?.orderOut(nil)
-        withAnimation(.easeIn(duration: 0.25)) { model.opacity = 0 }
-        after(0.3, token) { self.orderOutPanels() }
+        guard panel?.isVisible == true else { return }
+        withAnimation(.easeIn(duration: 0.2)) { model.opacity = 0 }
+        after(0.25, token) { self.orderOut() }
+    }
+
+    // MARK: Steps
+
+    /// Starts a new confirmation, cancelling any step still pending from the last one.
+    private func begin() -> Int {
+        generation &+= 1
+        layoutPanel()
+        if panel?.isVisible != true || model.opacity < 0.01 {
+            // Start with the chain drawn up behind the menu bar and no glow.
+            model.drop = -geometry.dropDistance
+            model.lit = 0
+            model.pull = 0
+            model.sway = 0
+            model.opacity = 1
+        }
+        panel?.orderFrontRegardless()
+        return generation
+    }
+
+    /// Lower the chain out from under the menu bar (already down: carry on).
+    private func dropChain(_ token: Int, then next: @escaping () -> Void) {
+        guard model.drop != 0 else {
+            after(0.02, token, next)
+            return
+        }
+        // Let the starting state render once so the drop animates from it.
+        after(0.02, token) {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.72)) { self.model.drop = 0 }
+        }
+        after(0.32, token, next)
     }
 
     /// Chain down (with a slight angle), click at the bottom, spring back and swing.
@@ -214,6 +192,27 @@ final class LampWindowPresenter: LampPresenting {
         }
     }
 
+    /// Glow off and the chain draws back up under the menu bar.
+    private func tuckAway(_ token: Int) {
+        withAnimation(.easeIn(duration: 0.22)) {
+            model.drop = -geometry.dropDistance
+            model.lit = 0
+        }
+        after(0.26, token) { self.orderOut() }
+    }
+
+    /// Reduce Motion: no drop or swing, just the glow fading with the click.
+    private func fadeConfirmation(_ token: Int, lit: Bool) {
+        model.drop = 0
+        model.lit = lit ? 0 : 1
+        PullChainClick.play()
+        withAnimation(.easeOut(duration: 0.25)) { model.lit = lit ? 1 : 0 }
+        after(lit ? Self.holdAfterOn : Self.holdAfterOff, token) {
+            withAnimation(.easeIn(duration: 0.25)) { self.model.opacity = 0 }
+            self.after(0.3, token) { self.orderOut() }
+        }
+    }
+
     private func after(_ delay: TimeInterval, _ token: Int, _ work: @escaping () -> Void) {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self, self.generation == token else { return }
@@ -221,14 +220,8 @@ final class LampWindowPresenter: LampPresenting {
         }
     }
 
-    private func showKnob() {
-        guard isShowing else { return }
-        knobPanel?.orderFrontRegardless()
-    }
-
-    private func orderOutPanels() {
-        lampPanel?.orderOut(nil)
-        knobPanel?.orderOut(nil)
+    private func orderOut() {
+        panel?.orderOut(nil)
         model.opacity = 0
         model.lit = 0
         model.pull = 0
@@ -238,7 +231,7 @@ final class LampWindowPresenter: LampPresenting {
 
     // MARK: Layout
 
-    private func layoutPanels() {
+    private func layoutPanel() {
         guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
         // Menu bar (or notch) height, so the chain seems to come out from under it.
         let menuBar = max(24, screen.frame.maxY - screen.visibleFrame.maxY, screen.safeAreaInsets.top)
@@ -247,33 +240,16 @@ final class LampWindowPresenter: LampPresenting {
         // Top-right, clear of the centered notch and the MacStayOn menu panel.
         let origin = NSPoint(x: screen.frame.maxX - size.width - 44, y: screen.frame.maxY - size.height)
 
-        let lamp = lampPanel ?? Self.makePanel(clickThrough: true)
-        if lampPanel == nil || newGeometry != geometry {
+        let panel = self.panel ?? Self.makePanel()
+        if self.panel == nil || newGeometry != geometry {
             geometry = newGeometry
-            lamp.contentView = NSHostingView(rootView: LampView(model: model, geometry: newGeometry))
+            panel.contentView = NSHostingView(rootView: LampView(model: model, geometry: newGeometry))
         }
-        lamp.setFrame(NSRect(origin: origin, size: size), display: false)
-        lampPanel = lamp
-
-        let knob = knobPanel ?? Self.makePanel(clickThrough: false)
-        if knobPanel == nil {
-            let hit = KnobHitView(frame: .zero)
-            hit.onPull = { [weak self] in self?.onPull?() }
-            knob.contentView = hit
-        }
-        // Generous target around the knob (screen coordinates are y-up).
-        let k = newGeometry.knobCenter
-        let hitSize = CGSize(width: 26, height: 34)
-        knob.setFrame(NSRect(
-            x: origin.x + k.x - hitSize.width / 2,
-            y: origin.y + size.height - k.y - hitSize.height / 2,
-            width: hitSize.width,
-            height: hitSize.height
-        ), display: false)
-        knobPanel = knob
+        panel.setFrame(NSRect(origin: origin, size: size), display: false)
+        self.panel = panel
     }
 
-    private static func makePanel(clickThrough: Bool) -> NSPanel {
+    private static func makePanel() -> NSPanel {
         let panel = LampPanel(
             contentRect: .zero,
             styleMask: [.borderless, .nonactivatingPanel],
@@ -288,9 +264,10 @@ final class LampWindowPresenter: LampPresenting {
         panel.hidesOnDeactivate = false
         panel.isMovable = false
         panel.animationBehavior = .none
-        // Explicitly false makes even the transparent knob target take clicks.
-        panel.ignoresMouseEvents = clickThrough
+        // A signal only: every click goes straight through to what's underneath.
+        panel.ignoresMouseEvents = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        panel.setAccessibilityElement(false)
         return panel
     }
 }
@@ -299,42 +276,9 @@ private final class LampPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    /// AppKit would push the panel below the menu bar; the cord is meant to run up behind it.
+    /// AppKit would push the panel below the menu bar; the chain is meant to run up behind it.
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
         frameRect
-    }
-}
-
-/// Invisible click target over the pull knob.
-private final class KnobHitView: NSView {
-    var onPull: (() -> Void)?
-
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-
-    override func mouseDown(with event: NSEvent) {
-        onPull?()
-    }
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        trackingAreas.forEach(removeTrackingArea)
-        addTrackingArea(NSTrackingArea(
-            rect: bounds,
-            options: [.cursorUpdate, .activeAlways, .inVisibleRect],
-            owner: self
-        ))
-    }
-
-    override func cursorUpdate(with event: NSEvent) {
-        NSCursor.pointingHand.set()
-    }
-
-    override func isAccessibilityElement() -> Bool { true }
-    override func accessibilityRole() -> NSAccessibility.Role? { .button }
-    override func accessibilityLabel() -> String? { "Pull chain: turn Stay Awake off" }
-    override func accessibilityPerformPress() -> Bool {
-        onPull?()
-        return true
     }
 }
 
