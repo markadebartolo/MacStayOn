@@ -11,9 +11,11 @@ final class StatusMenuController: NSObject, NSWindowDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let content: () -> AnyView
     private var panel: MenuPanel?
-    private var hosting: NSHostingController<AnyView>?
+    private var hosting: SizingHostingView?
+    private var resizeScheduled = false
     private var clickMonitor: Any?
     private var keyMonitor: Any?
+    private var deactivateObserver: NSObjectProtocol?
     private var iconWatch: AnyCancellable?
 
     var isOpen: Bool { panel?.isVisible == true }
@@ -38,8 +40,9 @@ final class StatusMenuController: NSObject, NSWindowDelegate {
         onOpen?()
         let panel = self.panel ?? makePanel()
         self.panel = panel
-        position(panel)
-        NSApp.activate(ignoringOtherApps: true)
+        fit()
+        // A non-activating panel takes keyboard focus without pulling the whole
+        // app forward (macOS may refuse that), like a menu.
         panel.makeKeyAndOrderFront(nil)
         statusItem.button?.highlight(true)
         installMonitors()
@@ -66,12 +69,20 @@ final class StatusMenuController: NSObject, NSWindowDelegate {
     // MARK: Panel
 
     private func makePanel() -> MenuPanel {
-        let hosting = NSHostingController(rootView: content())
-        // The window follows the strip's size as confirms and notes come and go.
-        hosting.sizingOptions = .preferredContentSize
+        // Fixed size on both axes, and the panel is sized here rather than by
+        // SwiftUI: letting the hosting view resize its own window looped (each
+        // layout resized the window, which laid out again) until the stack ran out.
+        let hosting = SizingHostingView(rootView: AnyView(content().fixedSize()))
+        hosting.sizingOptions = [.intrinsicContentSize]
+        hosting.onContentSizeChange = { [weak self] in self?.scheduleFit() }
         self.hosting = hosting
-        let panel = MenuPanel(contentViewController: hosting)
-        panel.styleMask = [.borderless]
+        let panel = MenuPanel(
+            contentRect: NSRect(origin: .zero, size: hosting.fittingSize),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.contentView = hosting
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
@@ -84,28 +95,51 @@ final class StatusMenuController: NSObject, NSWindowDelegate {
         return panel
     }
 
+    /// Size the panel to the strip (confirms and notes change its height).
+    /// Always deferred to the next run loop turn and only when it changed.
+    private func scheduleFit() {
+        guard !resizeScheduled else { return }
+        resizeScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.resizeScheduled = false
+            self.fit()
+        }
+    }
+
+    private func fit() {
+        guard let panel, let hosting else { return }
+        let size = hosting.fittingSize
+        if abs(panel.frame.width - size.width) > 0.5 || abs(panel.frame.height - size.height) > 0.5 {
+            panel.setContentSize(size)
+        }
+        position(panel)
+    }
+
     /// Centered horizontally, just under the menu bar (or the notch band in
     /// full-screen apps), on the screen with the menu bar item.
     private func position(_ panel: NSPanel) {
         guard let screen = statusItem.button?.window?.screen ?? NSScreen.main ?? NSScreen.screens.first else { return }
         let size = panel.frame.size
         let top = min(screen.visibleFrame.maxY, screen.frame.maxY - screen.safeAreaInsets.top) - 6
-        panel.setFrameOrigin(NSPoint(x: (screen.frame.midX - size.width / 2).rounded(), y: top - size.height))
+        let origin = NSPoint(x: (screen.frame.midX - size.width / 2).rounded(), y: (top - size.height).rounded())
+        // Only move when it actually changes: every move is a layout pass.
+        guard abs(panel.frame.origin.x - origin.x) > 0.5 || abs(panel.frame.origin.y - origin.y) > 0.5 else { return }
+        panel.setFrameOrigin(origin)
     }
 
-    func windowDidResize(_ notification: Notification) {
-        // Keep the top edge and the centering when the strip grows or shrinks.
-        guard let panel, panel.isVisible else { return }
-        position(panel)
-    }
 
-    func windowDidResignKey(_ notification: Notification) {
-        // Like a menu: clicking anywhere else (or the Touch ID sheet taking focus) closes it.
-        close()
-    }
-
+    /// Closes like a menu: a click in another app, Esc, the menu bar item again,
+    /// or switching to another app. (Not on losing key focus — that also
+    /// happens when macOS declines to bring the app forward, which closed the
+    /// panel the moment it opened.)
     private func installMonitors() {
         removeMonitors()
+        deactivateObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.close() }
+        }
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             Task { @MainActor in self?.close() }
         }
@@ -119,8 +153,20 @@ final class StatusMenuController: NSObject, NSWindowDelegate {
     private func removeMonitors() {
         if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+        if let deactivateObserver { NotificationCenter.default.removeObserver(deactivateObserver) }
         clickMonitor = nil
         keyMonitor = nil
+        deactivateObserver = nil
+    }
+}
+
+/// Hosting view that reports when the strip's natural size changes.
+private final class SizingHostingView: NSHostingView<AnyView> {
+    var onContentSizeChange: (() -> Void)?
+
+    override func invalidateIntrinsicContentSize() {
+        super.invalidateIntrinsicContentSize()
+        onContentSizeChange?()
     }
 }
 

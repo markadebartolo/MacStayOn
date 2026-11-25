@@ -92,6 +92,9 @@ final class GuideWindowController {
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
         window.isReleasedWhenClosed = false
+        // Open where the user is — including over a full-screen app — not on
+        // whichever desktop the app last used (an update relaunches it there).
+        window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         // Closing the guide without answering the notifications row: ask once,
         // now that the guide has explained why (never on top of the guide).
         closeObserver = NotificationCenter.default.addObserver(
