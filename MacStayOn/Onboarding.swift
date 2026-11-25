@@ -53,6 +53,9 @@ enum LaunchGuideDecider {
 /// Highlights shown on the "updated" screen, newest first.
 enum WhatsNew {
     static let releases: [(version: String, notes: [String])] = [
+        ("1.5.5", [
+            "MacStayOn is in the Dock too. Click its icon to open the menu, or right-click for Stay Awake, Turn Off and the guide.",
+        ]),
         ("1.5.4", [
             "A new app icon: a laptop with the lid open and its screen glowing over the keyboard. Still awake.",
         ]),

@@ -38,8 +38,8 @@ targets:
           - "@executable_path/../Frameworks"
         COMBINE_HIDPI_IMAGES: true
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        MARKETING_VERSION: "1.5.4"
-        CURRENT_PROJECT_VERSION: "39"
+        MARKETING_VERSION: "1.5.5"
+        CURRENT_PROJECT_VERSION: "40"
         ENABLE_HARDENED_RUNTIME: true
         SWIFT_EMIT_LOC_STRINGS: false
         SWIFT_OBJC_BRIDGING_HEADER: MacStayOn/MacStayOn-Bridging-Header.h
@@ -56,7 +56,7 @@ targets:
         excludes:
           - MacStayOnApp.swift
           - SparkleUpdateController.swift
-          - CenterTopMenuPanel.swift
+          - StatusMenu.swift
           - LaunchAtLogin.swift
           - SingleInstance.swift
           - GuideWindow.swift

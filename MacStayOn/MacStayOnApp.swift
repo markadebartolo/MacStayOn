@@ -6,20 +6,19 @@ import SwiftUI
 struct MacStayOnApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
+    // The menu bar item and its panel are AppKit (StatusMenuController), so the
+    // Dock icon can open them too. This scene only supplies the app menu.
     var body: some Scene {
-        MenuBarExtra {
-            PopoverRoot(
-                sleepManager: appDelegate.sleepManager,
-                analytics: appDelegate.sleepManager.analytics,
-                launchAtLogin: appDelegate.launchAtLogin,
-                keyboardShortcut: appDelegate.keyboardShortcut,
-                lamp: appDelegate.lamp,
-                openGuide: { [appDelegate] in appDelegate.guide.showGuide() }
-            )
-        } label: {
-            MenuBarLabel(sleepManager: appDelegate.sleepManager)
-        }
-        .menuBarExtraStyle(.window)
+        Settings { EmptyView() }
+            .commands {
+                CommandGroup(replacing: .appSettings) {
+                    Button("Open MacStayOn Menu") { [appDelegate] in appDelegate.statusMenu?.open() }
+                        .keyboardShortcut(",")
+                }
+                CommandGroup(replacing: .help) {
+                    Button("MacStayOn Guide") { [appDelegate] in appDelegate.guide.showGuide() }
+                }
+            }
     }
 }
 
@@ -48,6 +47,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     })
     private var updateGateWatch: AnyCancellable?
     private var isSecondCopy = false
+    /// Moon / sun in the menu bar and the panel it opens (also opened from the Dock).
+    private(set) var statusMenu: StatusMenuController?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         // Two copies (dist + Debug) share /tmp state and can fight the watchdog.
@@ -65,12 +66,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Decide before anything else writes settings, so a first install still looks like one.
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
         let launchGuide = LaunchGuideDecider.onLaunch(currentVersion: version, defaults: .standard)
-        // Keep menu-bar-only presentation; accidental .regular activation
-        // can leave a full app menu and confuse MenuBarExtra window opens.
-        if NSApp.activationPolicy() != .accessory {
-            _ = NSApp.setActivationPolicy(.accessory)
+        // In the Dock as well as the menu bar.
+        _ = NSApp.setActivationPolicy(.regular)
+        let statusMenu = StatusMenuController(isEnabled: sleepManager.$isEnabled.eraseToAnyPublisher()) { [unowned self] in
+            AnyView(
+                PopoverRoot(
+                    sleepManager: sleepManager,
+                    analytics: sleepManager.analytics,
+                    launchAtLogin: launchAtLogin,
+                    keyboardShortcut: keyboardShortcut,
+                    lamp: lamp,
+                    openGuide: { [weak self] in
+                        self?.statusMenu?.close()
+                        self?.guide.showGuide()
+                    }
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+            )
         }
-        MenuPanelCentering.shared.start()
+        statusMenu.onOpen = { [launchAtLogin, keyboardShortcut] in
+            launchAtLogin.refresh()
+            keyboardShortcut.refreshPermission()
+        }
+        self.statusMenu = statusMenu
         HardwareProfile.warmCache { [sleepManager] in
             sleepManager.refreshMachineLabel()
         }
@@ -110,26 +130,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }
-}
 
-// MARK: - Menu bar glyph
+    // MARK: Dock
 
-private struct MenuBarLabel: View {
-    @ObservedObject var sleepManager: SleepAssertionManager
+    /// Clicking the Dock icon opens the MacStayOn menu.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        statusMenu?.open()
+        return false
+    }
 
-    var body: some View {
-        Image(systemName: sleepManager.isEnabled ? "sun.max.fill" : "moon.zzz.fill")
-            .symbolRenderingMode(.hierarchical)
-            .accessibilityLabel(sleepManager.isEnabled ? "MacStayOn On" : "MacStayOn Off")
-            .help(sleepManager.isEnabled
-                  ? "MacStayOn: stays awake, no screensaver"
-                  : "MacStayOn: normal sleep")
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        let menu = NSMenu()
+        for item in DockMenuItem.items(isOn: sleepManager.isEnabled, isAwaitingApproval: sleepManager.isAwaitingAdminApproval) {
+            let entry = NSMenuItem(title: item.title, action: #selector(dockMenuChose(_:)), keyEquivalent: "")
+            entry.target = self
+            entry.representedObject = item.title
+            menu.addItem(entry)
+        }
+        return menu
+    }
+
+    @objc private func dockMenuChose(_ sender: NSMenuItem) {
+        guard let title = sender.representedObject as? String else { return }
+        switch title {
+        case DockMenuItem.stayAwake.title:
+            // Same path as the menu's button: heat note in the panel, then Touch ID.
+            sleepManager.requestEnableFromUser()
+            statusMenu?.open()
+        case DockMenuItem.turnOff.title:
+            sleepManager.setEnabled(false)
+        case DockMenuItem.openMenu.title:
+            statusMenu?.open()
+        case DockMenuItem.guide.title:
+            guide.showGuide()
+        default:
+            break
+        }
     }
 }
 
 // MARK: - Horizontal top bar
 
-private struct PopoverRoot: View {
+struct PopoverRoot: View {
     @ObservedObject var sleepManager: SleepAssertionManager
     @ObservedObject var analytics: SessionAnalytics
     @ObservedObject var launchAtLogin: LaunchAtLoginController
@@ -163,10 +205,9 @@ private struct PopoverRoot: View {
             keyboardShortcut.refreshPermission()
         }
         // Size to content so ON (longer button/session) never clips Quit;
-        // CenterTopMenuPanel recenters after the window width changes.
+        // the panel recenters itself when its width changes.
         .fixedSize(horizontal: true, vertical: false)
         .background(Palette.panel.ignoresSafeArea())
-        .background(CenterTopMenuPanel())
     }
 
     private var showsSecondaryNote: Bool {
