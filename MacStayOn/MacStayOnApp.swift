@@ -11,7 +11,8 @@ struct MacStayOnApp: App {
                 sleepManager: appDelegate.sleepManager,
                 analytics: appDelegate.sleepManager.analytics,
                 launchAtLogin: appDelegate.launchAtLogin,
-                keyboardShortcut: appDelegate.keyboardShortcut
+                keyboardShortcut: appDelegate.keyboardShortcut,
+                lamp: appDelegate.lamp
             )
         } label: {
             MenuBarLabel(sleepManager: appDelegate.sleepManager)
@@ -24,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let sleepManager = SleepAssertionManager()
     let launchAtLogin = LaunchAtLoginController()
     let keyboardShortcut = KeyboardShortcutController()
+    let lamp = LampOverlayController()
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         // Two copies (dist + Debug) share /tmp state and can fight the watchdog.
@@ -51,9 +53,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sleepManager.applyPersistedStateIfNeeded()
         // Sparkle daily check (Release only); menu “Check for Updates…” always available.
         SparkleUpdateController.startIfConfigured()
+        // While On, a lamp hangs from the top of the screen; its pull chain turns Off.
+        lamp.onPull = { [sleepManager] in
+            sleepManager.setEnabled(false)
+        }
+        lamp.bind(isEnabled: sleepManager.$isEnabled.eraseToAnyPublisher())
         // ←→↑↓ + Space toggles Stay Awake from any app (needs Input Monitoring).
-        keyboardShortcut.onToggle = { [sleepManager] in
+        keyboardShortcut.onToggle = { [sleepManager, lamp] in
+            let wasOn = sleepManager.isEnabled
             sleepManager.toggleFromKeyboardShortcut()
+            // With the lamp shown, its pull-chain click is the Off sound.
+            if wasOn, !sleepManager.isEnabled, !lamp.showLamp {
+                NSSound(named: "Pop")?.play()
+            }
         }
         keyboardShortcut.start()
     }
@@ -89,6 +101,7 @@ private struct PopoverRoot: View {
     @ObservedObject var analytics: SessionAnalytics
     @ObservedObject var launchAtLogin: LaunchAtLoginController
     @ObservedObject var keyboardShortcut: KeyboardShortcutController
+    @ObservedObject var lamp: LampOverlayController
     @ObservedObject private var updateReminders = SparkleUpdateReminderStore.shared
 
     private var isOn: Bool { sleepManager.isEnabled }
@@ -143,6 +156,8 @@ private struct PopoverRoot: View {
             }
             thinDivider
             darkenControl
+            thinDivider
+            lampControl
             thinDivider
             guardControl
             thinDivider
@@ -260,6 +275,28 @@ private struct PopoverRoot: View {
                  ? "Black screen — Mac stays awake. Key/click restores."
                  : "Optional black cover (does not sleep the display).")
               : "Turn Stay Awake on first, then darken.")
+    }
+
+    private var lampControl: some View {
+        HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Lamp")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Palette.text)
+                Text(lamp.showLamp ? "Shown" : "Hidden")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Palette.secondary)
+            }
+            Toggle("", isOn: Binding(
+                get: { lamp.showLamp },
+                set: { lamp.setShowLamp($0) }
+            ))
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+        }
+        .fixedSize()
+        .help("While Stay Awake is on, a lamp hangs at the top of the screen. Click its pull chain to turn off.")
     }
 
     private var guardControl: some View {
