@@ -74,7 +74,15 @@ private final class FakeSystem {
         return defaults
     }
 
-    func makeEnvironment(defaults: UserDefaults? = nil, watchdogRestoreTimeout: TimeInterval = 4) -> SleepAssertionManager.Environment {
+    /// When set, the fake admin dialog stays "open" until this is signaled.
+    var adminDialogGate: DispatchSemaphore?
+    private(set) var adminRanOnMainThread: Bool?
+
+    func makeEnvironment(
+        defaults: UserDefaults? = nil,
+        watchdogRestoreTimeout: TimeInterval = 4,
+        runsAdminOffMainThread: Bool = false
+    ) -> SleepAssertionManager.Environment {
         SleepAssertionManager.Environment(
             stateDirectory: stateDirectoryURL,
             defaults: defaults ?? makeDefaults(),
@@ -87,12 +95,15 @@ private final class FakeSystem {
                 return self.criticalAlertChoice
             },
             usesHostIntegrations: false,
-            watchdogRestoreTimeout: watchdogRestoreTimeout
+            watchdogRestoreTimeout: watchdogRestoreTimeout,
+            runsAdminOffMainThread: runsAdminOffMainThread
         )
     }
 
     private func handleAdminCommand(executable: String, arguments: [String]) -> SleepAssertionManager.AdminResult {
         if executable == "/bin/bash" {
+            adminRanOnMainThread = Thread.isMainThread
+            adminDialogGate?.wait()
             enableCallCount += 1
             lastEnableScriptPath = arguments.first
             switch enableBehavior {
@@ -234,6 +245,59 @@ final class SleepAssertionManagerTests: XCTestCase {
     }
 
     // MARK: - Turn On
+
+    private func makeOffMainManager() -> SleepAssertionManager {
+        let manager = SleepAssertionManager(
+            environment: system.makeEnvironment(runsAdminOffMainThread: true)
+        )
+        managers.append(manager)
+        return manager
+    }
+
+    /// The admin / Touch ID dialog used to run on the main thread: the whole menu bar
+    /// froze for as long as it was open (spin report "Slow response to HID event").
+    func testMenuStaysResponsiveWhileTurnOnAdminDialogIsOpen() {
+        let gate = DispatchSemaphore(value: 0)
+        system.adminDialogGate = gate
+        let manager = makeOffMainManager()
+
+        let started = Date()
+        turnOn(manager)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 0.5, "Turn On blocked the main thread on the admin dialog")
+        XCTAssertTrue(manager.isAwaitingAdminApproval)
+        XCTAssertFalse(manager.isEnabled)
+
+        // Main-queue work (menu events, timers) keeps running while the dialog is up.
+        var mainQueueRan = false
+        DispatchQueue.main.async { mainQueueRan = true }
+        waitUntil(timeout: 2, "main queue to run while the dialog is open") { mainQueueRan }
+        XCTAssertEqual(system.adminRanOnMainThread, false)
+
+        // Tapping Stay Awake again must not stack a second dialog.
+        manager.requestEnableFromUser()
+        XCTAssertFalse(manager.pendingEnableConfirm)
+
+        gate.signal() // user approves
+        waitUntil("Stay Awake on") { manager.isEnabled }
+        XCTAssertFalse(manager.isAwaitingAdminApproval)
+        XCTAssertEqual(system.sleepDisabled, 1)
+        XCTAssertEqual(system.enableCallCount, 1)
+    }
+
+    func testCancelingTheBackgroundAdminDialogStaysOffAndCanRetry() {
+        system.enableBehavior = .cancel
+        let manager = makeOffMainManager()
+
+        turnOn(manager)
+        waitUntil("admin result applied") { !manager.isAwaitingAdminApproval }
+        XCTAssertFalse(manager.isEnabled)
+        XCTAssertTrue(manager.lastError?.contains("canceled") == true, manager.lastError ?? "nil")
+
+        system.enableBehavior = .succeed
+        turnOn(manager)
+        waitUntil("Stay Awake on after retry") { manager.isEnabled }
+        XCTAssertEqual(system.enableCallCount, 2)
+    }
 
     func testTurnOnEnablesStayAwake() throws {
         let defaults = system.makeDefaults()
