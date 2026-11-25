@@ -66,13 +66,10 @@ final class SleepAssertionManager: ObservableObject {
     private static let guardEnabledKey = "macStayOnGuardEnabled"
     private static let batteryFloorKey = "macStayOnBatteryFloor"
     private static let darkenDisplayKey = "macStayOnDarkenDisplay"
-    /// Legacy v1.2.0 key — no longer used for assertion mode (was unsafe display-sleep).
-    private static let legacyKeepDisplayAwakeKey = "macStayOnKeepDisplayAwake"
     private static let systemAssertionName = "MacStayOn: keep system awake" as CFString
     private static let displayAssertionName = "MacStayOn: keep display awake (no screensaver)" as CFString
 
     @Published private(set) var isEnabled: Bool = false
-    @Published private(set) var statusDetail: String?
     @Published private(set) var lastError: String?
     @Published private(set) var guardEnabled: Bool
     @Published private(set) var batteryFloor: Int
@@ -103,8 +100,6 @@ final class SleepAssertionManager: ObservableObject {
     private let guardQueue = DispatchQueue(label: "com.markdebartolo.MacStayOn.guard", qos: .utility)
     /// Skip timer ticks while a prior guard pass is still running (pmset can stall).
     private var isGuardEvalRunning = false
-    /// SleepDisabled as last sampled by the guard (off-main). Main-thread only.
-    private var lastGuardSleepDisabled: Int?
     private var guardTripping = false
     /// Prevents re-entrant admin prompts while forcing SleepDisabled back to 0.
     private var isReconcilingSleep = false
@@ -177,7 +172,6 @@ final class SleepAssertionManager: ObservableObject {
         // Fresh default Off. Do not migrate legacy "display may sleep" — that mode was unsafe.
         if defaults.object(forKey: Self.darkenDisplayKey) == nil {
             darkenDisplay = false
-            defaults.removeObject(forKey: Self.legacyKeepDisplayAwakeKey)
         } else {
             darkenDisplay = defaults.bool(forKey: Self.darkenDisplayKey)
         }
@@ -200,7 +194,6 @@ final class SleepAssertionManager: ObservableObject {
         } else if !enabled {
             DisplayDarkenOverlay.deactivate()
         }
-        refreshStatusDetail()
     }
 
     func refreshMachineLabel() {
@@ -237,7 +230,6 @@ final class SleepAssertionManager: ObservableObject {
                 if readSleepDisabled() == 0 {
                     cleanupStateFiles()
                 }
-                refreshStatusDetail()
             }
         } else {
             // Off must mean normal lid sleep — clear any stuck SleepDisabled from a
@@ -246,7 +238,6 @@ final class SleepAssertionManager: ObservableObject {
             if readSleepDisabled() == 0 {
                 cleanupStateFiles()
             }
-            refreshStatusDetail()
         }
     }
 
@@ -255,7 +246,6 @@ final class SleepAssertionManager: ObservableObject {
         // The user already asked for the restore — go straight to the admin prompt.
         didPresentCriticalAlertForStuckEpisode = true
         _ = ensureNormalSleepWhileOff(promptAdminIfNeeded: true, forceAdminPrompt: true)
-        refreshStatusDetail()
     }
 
     private func canResumeExistingSession() -> Bool {
@@ -272,7 +262,6 @@ final class SleepAssertionManager: ObservableObject {
         isEnabled = true
         endStuckSleepActivity()
         startSessionHelpers()
-        refreshStatusDetail()
         appendEnableDebug("resumed existing session without admin")
     }
 
@@ -331,7 +320,6 @@ final class SleepAssertionManager: ObservableObject {
         // Admin dialog already up for a Turn On — do not start a second one.
         if isActivating { return }
         if isEnabled {
-            refreshStatusDetail()
             return
         }
         // Prefer clearing stuck sleep before a new Turn On.
@@ -344,7 +332,6 @@ final class SleepAssertionManager: ObservableObject {
         pendingLidOpenChoice = false
         pendingEnableConfirm = true
         lastError = nil
-        refreshStatusDetail()
     }
 
     /// User accepted heat/safety copy in the menu — run admin/pmset activate.
@@ -360,7 +347,6 @@ final class SleepAssertionManager: ObservableObject {
         isEnabled = false
         lastError = nil
         defaults.set(false, forKey: Self.defaultsKey)
-        refreshStatusDetail()
     }
 
     /// Lid-open menu choice: restore normal sleep.
@@ -374,14 +360,12 @@ final class SleepAssertionManager: ObservableObject {
     func confirmKeepOnAfterLidOpen() {
         pendingLidOpenChoice = false
         isPromptingLidOpen = false
-        refreshStatusDetail()
     }
 
     // MARK: - Activate
 
     private func activate() {
         if isEnabled && hasAssertion {
-            refreshStatusDetail()
             return
         }
         if isActivating { return }
@@ -529,7 +513,6 @@ final class SleepAssertionManager: ObservableObject {
             defaults.set(true, forKey: Self.defaultsKey)
             endStuckSleepActivity()
             startSessionHelpers()
-            refreshStatusDetail()
         case .cancelled:
             failActivation(message: "Admin authorization canceled — stayed Off.", debugNote: "admin cancelled")
         case .failure(let message):
@@ -549,7 +532,6 @@ final class SleepAssertionManager: ObservableObject {
         if !isSleepStuckWhileOff {
             lastError = message
         }
-        refreshStatusDetail()
     }
 
     /// The shared /tmp folder must be a real directory owned by this user and not
@@ -617,7 +599,6 @@ final class SleepAssertionManager: ObservableObject {
         if ensureNormalSleepWhileOff(promptAdminIfNeeded: true) {
             lastError = nil
         }
-        refreshStatusDetail()
     }
 
     /// When MacStayOn is Off, `pmset disablesleep` / SleepDisabled must be 0.
@@ -700,17 +681,14 @@ final class SleepAssertionManager: ObservableObject {
                     clearCriticalSleepStuckUI()
                     return true
                 }
-                refreshStatusDetail()
                 return false
             case .later:
                 // Respect "Later": keep the menu banner; the user restores from there.
-                refreshStatusDetail()
                 return false
             }
         }
 
         guard promptAdminIfNeeded else {
-            refreshStatusDetail()
             return false
         }
 
@@ -721,7 +699,6 @@ final class SleepAssertionManager: ObservableObject {
         // sentinel, and the sleep-safety daemon restores a stale request on its own.
         // Only an explicit user action, or quitting, prompts again.
         guard forceAdminPrompt || isTerminating else {
-            refreshStatusDetail()
             return false
         }
 
@@ -733,7 +710,6 @@ final class SleepAssertionManager: ObservableObject {
             return true
         }
 
-        refreshStatusDetail()
         return false
     }
 
@@ -761,7 +737,6 @@ final class SleepAssertionManager: ObservableObject {
                         skipWatchdogWait: generationAtStart == self.stateGeneration
                     )
                 }
-                self.refreshStatusDetail()
             }
         }
     }
@@ -1067,7 +1042,6 @@ final class SleepAssertionManager: ObservableObject {
             self.lidOpenSessionDuration = SessionAnalytics.formatDuration(self.analytics.elapsed)
             self.pendingLidOpenChoice = true
             self.isPromptingLidOpen = false
-            self.refreshStatusDetail()
             NSApp.activate(ignoringOtherApps: true)
         }
     }
@@ -1235,7 +1209,6 @@ final class SleepAssertionManager: ObservableObject {
         guard !isInertSecondaryInstance else { return }
         onACPower = snapshot.onAC
         batteryPercent = snapshot.percent
-        lastGuardSleepDisabled = sleepDisabled
         switch thermal {
         case .critical: thermalLabel = "critical heat"
         case .serious: thermalLabel = "serious heat"
@@ -1270,7 +1243,6 @@ final class SleepAssertionManager: ObservableObject {
                 releaseAssertion()
                 stopSessionHelpers(retainAnalytics: true)
                 lastError = "Stay Awake stopped — system sleep was re-enabled outside MacStayOn."
-                refreshStatusDetail()
                 return
             }
         } else if !isActivating {
@@ -1290,7 +1262,6 @@ final class SleepAssertionManager: ObservableObject {
                 // Unreadable pmset, no Stay Awake artifacts — not a bag emergency.
                 clearCriticalSleepStuckUI()
             }
-            refreshStatusDetail()
             return
         }
 
@@ -1313,41 +1284,9 @@ final class SleepAssertionManager: ObservableObject {
         requestWatchdogRestore()
         setEnabled(false)
         lastError = message
-        statusDetail = message
         guardTripping = false
     }
 
-    private func refreshStatusDetail() {
-        if let lastError {
-            statusDetail = lastError
-            return
-        }
-
-        let power = onACPower ? "AC power" : "on battery"
-        // Last value sampled off the main thread by the guard. Never shell out to pmset
-        // here: this runs on every state change, on the main thread (menu-bar stalls).
-        let disablesleep = lastGuardSleepDisabled
-
-        if isEnabled {
-            let flag: String
-            if let disablesleep {
-                flag = "SleepDisabled=\(disablesleep)"
-            } else {
-                flag = "SleepDisabled=?"
-            }
-            let display = "display/screensaver \(displayAssertionID != 0 ? "held" : "off")"
-            let dark = darkenDisplay ? " · black screen" : ""
-            statusDetail = "\(flag) · system \(systemAssertionID != 0 ? "on" : "off") · \(display)\(dark) · \(power)"
-        } else if isAwaitingWatchdogRestore {
-            statusDetail = "Restoring normal lid sleep… · \(power)"
-        } else if isSleepStuckWhileOff || disablesleep == 1 || (disablesleep == nil && hasStayAwakeStateArtifacts()) {
-            statusDetail = "CRITICAL: Off but lid sleep still disabled — approve admin to restore (bag risk)"
-        } else if disablesleep == nil {
-            statusDetail = "Could not verify lid sleep · \(power)"
-        } else {
-            statusDetail = "Normal sleep · \(power)"
-        }
-    }
 
     /// Reads system-wide sleep-disabled flag. On current macOS, `pmset -g`
     /// reports this as `SleepDisabled` under "System-wide power settings", not
