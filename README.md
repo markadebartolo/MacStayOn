@@ -1,10 +1,12 @@
 <p align="center">
-  <img src="docs/media/macstayon-appicon-1024.png" alt="MacStayOn" width="96" height="96">
+  <img src="docs/media/macstayon-appicon-1024.png" alt="MacStayOn app icon: a laptop corner, lid open, screen glowing warm over the keyboard" width="128" height="128">
 </p>
 
+<h1 align="center">MacStayOn</h1>
+
 <p align="center">
-  <strong>MacStayOn</strong><br>
-  <sub>Menu bar stay-awake for closed-lid agent runs — compact horizontal panel, centered under the menu bar</sub>
+  Keep your Mac awake with the lid closed, so agents, builds and downloads keep running.<br>
+  <sub>A small menu bar app. Turn it on, close the lid, walk away. Turn it off and normal sleep comes back.</sub>
 </p>
 
 <p align="center">
@@ -18,85 +20,106 @@
   <img src="https://img.shields.io/badge/Apple%20Silicon-arm64-000000?style=flat-square&logo=apple&logoColor=white" alt="Apple Silicon arm64">
   <img src="https://img.shields.io/badge/menu%20bar-only-F18636?style=flat-square" alt="Menu bar only">
   <img src="https://img.shields.io/badge/notarized-Developer%20ID-007AFF?style=flat-square&logo=apple&logoColor=white" alt="Notarized">
+  <img src="https://img.shields.io/badge/updates-automatic-2E8B57?style=flat-square" alt="Automatic updates">
 </p>
 
 <p align="center">
-  <img src="docs/media/macstayon-menu.png" alt="MacStayOn horizontal menu — Stay Awake, Darken display, Heat &amp; battery, session, Quit — centered under the menu bar" width="920">
+  <img src="docs/media/macstayon-guide-turn-on.png" alt="The built-in guide's Turn Stay Awake on step: from the menu, or hold the arrow keys and Space" width="460">
 </p>
-
----
-
-## Features
-
-- **Compact horizontal menu** — wide short strip under the menu bar (not a tall card covering the middle of the screen)
-- **Always top-centered** — opens in the horizontal center of the screen no matter where the MacStayOn icon sits in the menu bar
-- **Stay Awake** — keeps the Mac awake with the lid closed or open; blocks the screensaver while on
-- **Darken display** — optional black overlay while Stay Awake is on (Mac stays awake; key/click restores)
-- **Heat & battery guard** — auto Off at a chosen battery floor (10–50%) or on serious heat
-- **Open at login** — optional Login Item (`SMAppService`); app launches Off — Stay Awake never auto-enables
-- **In-menu confirms** — heat warning and lid-open “turn off?” stay in the panel (fewer separate prompts)
-- **Session chip** — elapsed time of the current or last Stay Awake session
-- **Keyboard shortcut** — hold **← → ↑ ↓ + Space** together, from any app, to turn Stay Awake on (Touch ID) or off. Needs **Input Monitoring** access (System Settings → Privacy & Security → Input Monitoring); MacStayOn only listens — the keys still reach your app
-- **Glow confirmation** — whenever Stay Awake turns on or off (menu or keyboard shortcut), a brass pull chain drops from under the menu bar at the top right, gets a tug with a click, and a warm glow comes on (or goes out); then it tucks away. It's a signal that it worked, not a switch: nothing stays on screen and clicks pass straight through. Turn it off with the **Glow** switch
-- **Touch ID admin** — Developer ID build can offer Touch ID for the one-time `pmset` approve
-- **Bag-safe Off** — Off / Quit always restore normal lid sleep (`SleepDisabled=0`) and remove the sleep-safety LaunchDaemon so nothing durable keeps the Mac force-awake
-- **Automatic updates** — daily check (Sparkle + GitHub Releases appcast); new versions download in the background and install only while Stay Awake is off, never mid-session. **Updates** in the menu checks on demand
-- **Menu bar only** — no Dock icon, no extra windows
 
 ---
 
 ## Why MacStayOn
 
-Close the lid and keep working — **Cursor, Claude, builds, and other agents** can keep running without an external display. MacStayOn lives in the **menu bar**. One tap turns stay-awake on; turn it off and **normal lid sleep** comes back.
+Close the lid and keep working. **Cursor, Claude, builds and other long-running jobs** keep going without an external display, on battery or plugged in. MacStayOn lives in the **menu bar**: one click (or one key combination) turns it on, and turning it off brings **normal lid sleep** back.
 
-> **Safety first:** A closed Mac can overheat in a bag or under a blanket. MacStayOn warns you before enabling and can **turn itself off** on low battery or serious heat. On a fanless **MacBook Air** or **MacBook Neo**, the Turn On warning also advises shorter closed-lid sessions.
+> **Safety first:** a closed Mac can overheat in a bag or under a blanket. MacStayOn warns you before turning on, and the **Heat & battery** guard turns it off by itself on low battery or serious heat. On a fanless **MacBook Air** or **MacBook Neo**, the warning also advises shorter closed-lid sessions.
+
+## Features
+
+- **Stay Awake, lid open or closed.** Blocks lid sleep and the screensaver while on, and works on battery without a monitor.
+- **Two ways to turn on.** Use the menu, or hold **← → ↑ ↓ + Space** together from any app. Either way you approve once with **Touch ID** (or your password).
+- **Glow confirmation.** Every time Stay Awake turns on or off, a brass pull chain drops from the menu bar, gets a tug with a click, and a warm glow comes on (or goes out). Then it tucks away. It's a quick sign that it worked, especially from the keyboard, and nothing stays on screen.
+- **Built-in guide.** A short walkthrough opens the first time you launch MacStayOn. It covers turning on, the glow, permissions and updates, and you can reopen it any time from **?** in the menu. After each update it shows what's new.
+- **Permissions, explained.** The guide lists everything MacStayOn may ask for, says why, shows whether each one is set up, and has a button to fix any that isn't.
+- **Automatic updates that never interrupt.** New versions download in the background and install **only while Stay Awake is off**. Then MacStayOn reopens with what's new.
+- **Heat & battery guard.** Turns Stay Awake off at a battery level you choose (10–50%) or on serious heat.
+- **Darken.** Optional black cover while on; the Mac stays awake. Any key or click brings the screen back.
+- **Lid-close flash and lid-open check.** While on, the screen pulses orange as you close the lid (on Macs with a lid-angle sensor). When you open it again, MacStayOn asks whether to turn off or keep going.
+- **Bag-safe Off.** Turning off or quitting always restores normal lid sleep and removes MacStayOn's background safety helper, so nothing is left keeping the Mac awake.
+- **Menu bar only.** No Dock icon and no windows (apart from the guide). Nothing is sent to a server.
+
+<p align="center">
+  <img src="docs/media/macstayon-glow.png" alt="The glow confirmation: a brass pull chain hanging from the menu bar in a warm glow" width="240">
+  &nbsp;&nbsp;
+  <img src="docs/media/macstayon-guide-permissions.png" alt="The guide's Permissions step: administrator approval, Input Monitoring, notifications, background safety net, open at login" width="420">
+</p>
 
 ---
 
-## Get started (macOS)
+## Get started
 
-1. Download **[MacStayOn-macos-arm64.zip](https://github.com/markadebartolo/MacStayOn/releases/latest)** from Releases.
-2. Unzip, drag **MacStayOn.app** into **Applications**, and open it (notarized builds open normally; no right-click workaround needed).
-3. Click the **moon** icon in the menu bar.
-4. Tap **Stay Awake** → confirm the heat warning **in the menu** → approve **admin once** with **Touch ID** when offered (or password). That blocks lid sleep on battery **and** keeps the screensaver off with the lid open.
-5. Close the lid when you are ready. Open it again and MacStayOn asks whether to **restore normal sleep** or stay on.
+1. Download **[MacStayOn-macos-arm64.zip](https://github.com/markadebartolo/MacStayOn/releases/latest)** and unzip it.
+2. Drag **MacStayOn.app** into **Applications** and open it. It's notarized, so it opens normally. If you open it from Downloads instead, MacStayOn offers to move itself to Applications.
+3. The **guide** opens and walks you through the rest. In short:
+   - Click the **moon** in the menu bar, click **Stay Awake**, read the heat note, click **Turn On**, and approve with **Touch ID**.
+   - Or hold **← → ↑ ↓ + Space** from any app, then approve with Touch ID.
+4. Close the lid. When you open it again, MacStayOn asks whether to restore normal sleep or stay on.
 
 ### Who can use the download
 
 | | |
 |--|--|
 | **Works on** | **Apple Silicon** Macs (M1, M2, M3, M4, …) · **macOS 13 Ventura** or later |
-| **File** | `MacStayOn-macos-arm64.zip` — **arm64 only** (not a universal / Intel build) |
-| **Best on** | MacBook / MacBook Pro / MacBook Air (lid close is the main use case) |
-| **Also OK** | Desktop Apple Silicon Macs if you still want stay-awake / no-screensaver — no lid flash or lid-open prompt |
-| **Not for** | **Intel Macs**, Windows, or older macOS (12 and below) |
+| **File** | `MacStayOn-macos-arm64.zip`, **arm64 only** (not a universal or Intel build) |
+| **Best on** | MacBook, MacBook Air, MacBook Pro (closing the lid is the main use) |
+| **Also OK** | Apple Silicon desktops, for stay-awake and no-screensaver (no lid flash or lid-open prompt) |
+| **Not for** | **Intel Macs**, Windows, or macOS 12 and older |
 
-**Lid-angle sensor** (orange flash while closing past ~85°) is only on newer MacBooks that have that hardware. Older Apple Silicon MacBooks without it still get full stay-awake; they just skip the flash.
-
-Not sure which chip you have? Apple menu → **About This Mac** — look for **Chip** (e.g. Apple M2). If it says **Intel**, this download will not run.
+Not sure which chip you have? Apple menu → **About This Mac** → **Chip**. If it says **Intel**, this download won't run.
 
 ---
 
-## The menu panel
+## Permissions
 
-Click the menu-bar icon for a **compact horizontal bar** centered under the menu bar at the top of the screen (not beside the icon, and not a tall card in the middle). Left to right: brand/status, primary action, Darken, Heat & battery, session, Quit. Confirms and session details expand as short strips under the bar.
+MacStayOn asks for as little as it can. The guide's **Permissions** step shows the live status of each one.
+
+| Permission | Why | When |
+|---|---|---|
+| **Administrator approval** (Touch ID or password) | Lets the Mac stay awake with the lid closed (`pmset disablesleep`) | Each time you turn on |
+| **Input Monitoring** | The **← → ↑ ↓ + Space** shortcut. MacStayOn only listens for that combination; your keys still reach your apps | Optional, only for the shortcut |
+| **Notifications** | A heads-up when an update is ready | Optional |
+| **Background item** ("Background Items Added") | MacStayOn's safety net, which restores normal sleep if the app is force-quit. Runs only while Stay Awake is on, and is listed as MacStayOn | Added when you turn on, removed when you turn off |
+| **Login item** | Opens MacStayOn when you log in. Stay Awake still starts **Off** | Optional |
+
+---
+
+## The menu
+
+Click the moon (sun when on) for a compact strip centered at the top of the screen.
 
 | Control | What it does |
 |--------|----------------|
-| **Brand / status** | MacStayOn **ON** / **OFF**, short sleep line, chip + AC/battery |
-| **Primary button** | **Stay Awake** (orange) or **Restore** when on — works lid open or closed |
-| **Darken** | Black overlay while Stay Awake is on (Mac stays awake; no display sleep). Key/click restores |
-| **Glow** | Show the quick glow + pull-chain confirmation when Stay Awake turns on or off (default on) |
-| **Heat & batt.** | Toggle + floor **10–50%** battery. Also turns off if macOS reports **serious heat** |
-| **At login** | Open MacStayOn when you log in (System Settings → Login Items). Stay Awake stays **Off** until you turn it on |
-| **Lid-close flash** | While On, closing the lid past ~85° pulses the screen orange until the lid is fully shut (or reopened). Needs a lid-angle sensor; skipped quietly on Macs without one. |
-| **Session** | Duration of the current or last Stay Awake session |
-| **Shortcut** | Hold **← → ↑ ↓ + Space** anywhere to toggle Stay Awake. On asks for Touch ID; Off is immediate. Shows a link to grant Input Monitoring access if it's missing |
-| **Guide (?)** | Reopens the built-in walkthrough: install, Turn On, the glow, the keyboard shortcut, and updates. It also opens on its own the first time you launch MacStayOn, and shows what's new after an update |
-| **Updates** | Updates install **automatically**: downloaded in the background, installed only while Stay Awake is **off** (never mid-session), then MacStayOn reopens with what's new. **Check for Updates…** checks now. Turn automatic installs off in the guide's Updates step, and the button turns into **Update x.y.z** when one is waiting |
-| **Quit** | Restores sleep settings and exits |
+| **Status** | MacStayOn **ON** / **OFF**, sleep state, Mac model and power |
+| **Stay Awake / Restore** | Turns Stay Awake on (heat note, then Touch ID) or off |
+| **Darken** | Black cover while on (the Mac stays awake). Any key or click restores the screen |
+| **Glow** | Show the glow and pull-chain confirmation on turn on and off (default on) |
+| **Heat & batt.** | Turns off at your battery floor (10–50%) or on serious heat |
+| **At login** | Open MacStayOn when you log in |
+| **Session** | How long the current or last session ran |
+| **?** | Opens the guide |
+| **Updates** | Checks for updates now. Updates normally install by themselves (see below) |
+| **Quit** | Restores normal sleep and quits |
 
-Nothing is sent to a server.
+## Updates
+
+MacStayOn checks **once a day** (Sparkle, from this repo's GitHub Releases). When a new version is out:
+
+1. It **downloads in the background**.
+2. It **installs only while Stay Awake is off**. If a session is running, the update waits until you turn it off, so it never cuts one short.
+3. MacStayOn **reopens and shows what's new**. Your settings and permissions carry over.
+
+Prefer to install updates yourself? Open the guide (**?**), go to **Updates**, and turn off **Install updates automatically**. The **Updates** button turns orange when one is ready.
 
 ---
 
@@ -104,27 +127,24 @@ Nothing is sent to a server.
 
 | When you turn **On** | When you turn **Off** or **Quit** |
 |----------------------|-----------------------------------|
-| `pmset disablesleep` (**admin once** — Touch ID when offered) + IOKit stay-awake + **no screensaver** + sleep-safety LaunchDaemon (SIGKILL net) | A root watchdog restores normal lid sleep and uninstalls that daemon — **no password** in the usual case |
-| Works on **battery** without a monitor | If the watchdog was killed, Off asks for admin to clear stuck sleep — **Off never leaves SleepDisabled on** or a leftover force-awake daemon (bag-safety) |
+| `pmset disablesleep` (admin approval, Touch ID when offered), IOKit stay-awake assertions, screensaver blocked, and a sleep-safety LaunchDaemon as a backstop | A root watchdog restores normal lid sleep and removes that daemon, with **no password** in the usual case |
+| Works on **battery** without a monitor | If the watchdog was killed, Off asks for admin to clear stuck sleep. Off never leaves `SleepDisabled` on, or a leftover daemon (bag safety) |
 
-`PreventSystemSleep` alone is not enough on battery; MacStayOn uses the same approach power users rely on for closed-lid work.
+`PreventSystemSleep` alone isn't enough on battery; MacStayOn uses the same approach power users rely on for closed-lid work.
 
 ---
 
 ## Build from source
 
-Developers and contributors:
-
 ```bash
 brew install xcodegen
-chmod +x scripts/build.sh
 ./scripts/build.sh
 open dist/MacStayOn.app
 ```
 
 Open in Xcode: `xcodegen generate && open MacStayOn.xcodeproj`
 
-Run the tests (no admin rights needed; the root scripts run against a sandbox, never the real `pmset`):
+Run the tests. No admin rights are needed: the root scripts run against a sandbox, never the real `pmset`.
 
 ```bash
 xcodegen generate
@@ -132,23 +152,22 @@ xcodebuild -project MacStayOn.xcodeproj -scheme MacStayOn -configuration Debug \
   -derivedDataPath build/DerivedDataTest CODE_SIGNING_ALLOWED=NO test
 ```
 
-**Sign, notarize, and publish updates** (Developer ID + Sparkle appcast): see **[docs/DISTRIBUTE-MAC.md](docs/DISTRIBUTE-MAC.md)**.
+The app icon is drawn in code (`scripts/app-icon/main.swift`). To regenerate every size and `docs/media/MacStayOn.icns`, run `./scripts/make-app-icon.sh`.
 
-Update feed (installed apps):  
-`https://github.com/markadebartolo/MacStayOn/releases/latest/download/appcast.xml`
+**Sign, notarize and publish updates** (Developer ID + Sparkle appcast): see **[docs/DISTRIBUTE-MAC.md](docs/DISTRIBUTE-MAC.md)**.
 
----
+Update feed: `https://github.com/markadebartolo/MacStayOn/releases/latest/download/appcast.xml`
 
 ## Verify (optional)
 
 ```bash
-pmset -g | grep disablesleep    # 1 while On
+pmset -g | grep SleepDisabled       # 1 while On, 0 when Off
 pmset -g assertions | grep -i MacStayOn
-spctl -a -vv dist/MacStayOn.app # Notarized Developer ID (after notarize.sh)
+spctl -a -vv /Applications/MacStayOn.app   # Notarized Developer ID
 ```
 
 ---
 
 <p align="center">
-  <sub>Menu bar · Horizontal top-centered panel · Local session analytics · Notarized macOS builds on Releases</sub>
+  <sub>Menu bar app · Lid closed, still working · Notarized builds with automatic updates on Releases</sub>
 </p>
