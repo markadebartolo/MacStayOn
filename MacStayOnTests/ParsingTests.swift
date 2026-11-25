@@ -133,12 +133,12 @@ final class ParsingTests: XCTestCase {
         XCTAssertTrue(analytics.hasSummary)
         let frozenElapsed = analytics.elapsed
         spinMainRunLoop(for: 1.2)
-        XCTAssertEqual(analytics.elapsed, frozenElapsed, "a late background scan changed a finished session")
+        XCTAssertEqual(analytics.elapsed, frozenElapsed, "a finished session's clock kept running")
 
         analytics.clear()
         XCTAssertFalse(analytics.hasSummary)
         XCTAssertEqual(analytics.elapsed, 0)
-        XCTAssertTrue(analytics.topApps.isEmpty)
+        XCTAssertFalse(analytics.isLive)
     }
 
     func testFanlessDetection() {

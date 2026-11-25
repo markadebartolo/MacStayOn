@@ -10,7 +10,8 @@ struct MacStayOnApp: App {
             PopoverRoot(
                 sleepManager: appDelegate.sleepManager,
                 analytics: appDelegate.sleepManager.analytics,
-                launchAtLogin: appDelegate.launchAtLogin
+                launchAtLogin: appDelegate.launchAtLogin,
+                keyboardShortcut: appDelegate.keyboardShortcut
             )
         } label: {
             MenuBarLabel(sleepManager: appDelegate.sleepManager)
@@ -22,6 +23,7 @@ struct MacStayOnApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let sleepManager = SleepAssertionManager()
     let launchAtLogin = LaunchAtLoginController()
+    let keyboardShortcut = KeyboardShortcutController()
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         // Two copies (dist + Debug) share /tmp state and can fight the watchdog.
@@ -49,6 +51,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sleepManager.applyPersistedStateIfNeeded()
         // Sparkle daily check (Release only); menu “Check for Updates…” always available.
         SparkleUpdateController.startIfConfigured()
+        // ←→↑↓ + Space toggles Stay Awake from any app (needs Accessibility).
+        keyboardShortcut.onToggle = { [sleepManager] in
+            sleepManager.toggleFromKeyboardShortcut()
+        }
+        keyboardShortcut.start()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -81,8 +88,8 @@ private struct PopoverRoot: View {
     @ObservedObject var sleepManager: SleepAssertionManager
     @ObservedObject var analytics: SessionAnalytics
     @ObservedObject var launchAtLogin: LaunchAtLoginController
+    @ObservedObject var keyboardShortcut: KeyboardShortcutController
     @ObservedObject private var updateReminders = SparkleUpdateReminderStore.shared
-    @State private var sessionAppsExpanded = false
 
     private var isOn: Bool { sleepManager.isEnabled }
 
@@ -99,16 +106,15 @@ private struct PopoverRoot: View {
                 Divider().overlay(Palette.line)
                 lidOpenChoiceStrip
             }
-            if sessionAppsExpanded, analytics.isLive || analytics.hasSummary {
-                Divider().overlay(Palette.line)
-                sessionExpandedStrip
-            }
             if showsSecondaryNote {
                 Divider().overlay(Palette.line)
                 secondaryNoteStrip
             }
         }
-        .onAppear { launchAtLogin.refresh() }
+        .onAppear {
+            launchAtLogin.refresh()
+            keyboardShortcut.refreshPermission()
+        }
         // Size to content so ON (longer button/session) never clips Quit;
         // CenterTopMenuPanel recenters after the window width changes.
         .fixedSize(horizontal: true, vertical: false)
@@ -121,6 +127,7 @@ private struct PopoverRoot: View {
         if let err = sleepManager.lastError, !isOn { return true }
         if let note = sleepManager.foreignSleepNote, !note.isEmpty { return true }
         if let note = launchAtLogin.statusNote, !note.isEmpty { return true }
+        if keyboardShortcut.needsPermission { return true }
         return false
     }
 
@@ -317,34 +324,21 @@ private struct PopoverRoot: View {
     private var sessionChip: some View {
         Group {
             if analytics.isLive || analytics.hasSummary {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        sessionAppsExpanded.toggle()
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 9, weight: .semibold))
-                            .rotationEffect(.degrees(sessionAppsExpanded ? 90 : 0))
-                        Text(SessionAnalytics.formatDuration(analytics.elapsed))
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .monospacedDigit()
-                        if !analytics.topApps.isEmpty {
-                            Text("·\(analytics.topApps.count)")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(Palette.secondary)
-                        }
-                    }
-                    .foregroundStyle(Palette.text)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Palette.chip)
-                    )
+                HStack(spacing: 4) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 9, weight: .semibold))
+                    Text(SessionAnalytics.formatDuration(analytics.elapsed))
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .monospacedDigit()
                 }
-                .buttonStyle(.plain)
-                .help(analytics.isLive ? "This session — expand for apps" : "Last session — expand for apps")
+                .foregroundStyle(Palette.text)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Palette.chip)
+                )
+                .help(analytics.isLive ? "This Stay Awake session" : "Last Stay Awake session")
                 .fixedSize()
             } else {
                 Text("—")
@@ -505,59 +499,6 @@ private struct PopoverRoot: View {
         .padding(.vertical, 10)
     }
 
-    private var sessionExpandedStrip: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if analytics.topApps.isEmpty {
-                Text(analytics.isLive
-                      ? "Apps doing work will show up — including agents behind other windows."
-                      : "No app activity recorded.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Palette.secondary)
-            } else {
-                // Compact multi-column rows
-                ForEach(analytics.topApps.prefix(8)) { row in
-                    HStack(spacing: 10) {
-                        Text(row.name)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(Palette.text)
-                            .lineLimit(1)
-                            .frame(width: 140, alignment: .leading)
-                        Text(rowStatus(row))
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(row.isActiveNow ? Palette.orange : Palette.secondary)
-                            .frame(width: 120, alignment: .leading)
-                        if let detail = row.detail {
-                            Text(detail)
-                                .font(.system(size: 10))
-                                .foregroundStyle(Palette.secondary)
-                                .lineLimit(1)
-                        }
-                        Spacer(minLength: 0)
-                        Text(SessionAnalytics.formatDuration(row.duration))
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                            .foregroundStyle(Palette.secondary)
-                            .monospacedDigit()
-                    }
-                }
-            }
-            HStack {
-                if !analytics.isLive && analytics.hasSummary {
-                    Button("Clear last session") { analytics.clear() }
-                        .buttonStyle(.plain)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Palette.secondary)
-                }
-                Spacer()
-                Text("Local only — you’ll be asked to turn Off when the lid opens.")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Palette.secondary.opacity(0.9))
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .frame(maxHeight: 180)
-    }
-
     private var secondaryNoteStrip: some View {
         VStack(alignment: .leading, spacing: 2) {
             if let err = sleepManager.lastError, !isOn {
@@ -577,6 +518,18 @@ private struct PopoverRoot: View {
                     .font(.system(size: 10))
                     .foregroundStyle(Palette.orange)
                     .lineLimit(2)
+            }
+            if keyboardShortcut.needsPermission {
+                Button {
+                    keyboardShortcut.openAccessibilitySettings()
+                } label: {
+                    Text("Shortcut ←→↑↓ + Space needs Accessibility access — open Settings")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Palette.orange)
+                        .underline()
+                }
+                .buttonStyle(.plain)
+                .help("System Settings → Privacy & Security → Accessibility → turn on MacStayOn")
             }
         }
         .frame(maxWidth: 900, alignment: .leading)
@@ -626,16 +579,6 @@ private struct PopoverRoot: View {
         let machine = sleepManager.machineLabel.trimmingCharacters(in: .whitespacesAndNewlines)
         if machine.isEmpty { return power }
         return "\(machine) · \(power)"
-    }
-
-    private func rowStatus(_ row: AppUsageRow) -> String {
-        if row.isActiveNow {
-            return row.wasBackgroundWork ? "working in background" : "working now"
-        }
-        if analytics.isLive {
-            return row.isRunning ? "idle" : "stopped"
-        }
-        return row.wasBackgroundWork ? "background work" : "this session"
     }
 }
 
