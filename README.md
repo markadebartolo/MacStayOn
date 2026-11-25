@@ -40,7 +40,7 @@
 - **Glow confirmation** — whenever Stay Awake turns on or off (menu or keyboard shortcut), a brass pull chain drops from under the menu bar at the top right, gets a tug with a click, and a warm glow comes on (or goes out); then it tucks away. It's a signal that it worked, not a switch: nothing stays on screen and clicks pass straight through. Turn it off with the **Glow** switch
 - **Touch ID admin** — Developer ID build can offer Touch ID for the one-time `pmset` approve
 - **Bag-safe Off** — Off / Quit always restore normal lid sleep (`SleepDisabled=0`) and remove the sleep-safety LaunchDaemon so nothing durable keeps the Mac force-awake
-- **In-app updates** — **Updates** in the menu panel (Sparkle + GitHub Releases appcast); quiet daily check
+- **Automatic updates** — daily check (Sparkle + GitHub Releases appcast); new versions download in the background and install only while Stay Awake is off, never mid-session. **Updates** in the menu checks on demand
 - **Menu bar only** — no Dock icon, no extra windows
 
 ---
@@ -93,7 +93,7 @@ Click the menu-bar icon for a **compact horizontal bar** centered under the menu
 | **Session** | Duration of the current or last Stay Awake session |
 | **Shortcut** | Hold **← → ↑ ↓ + Space** anywhere to toggle Stay Awake. On asks for Touch ID; Off is immediate. Shows a link to grant Input Monitoring access if it's missing |
 | **Guide (?)** | Reopens the built-in walkthrough: install, Turn On, the glow, the keyboard shortcut, and updates. It also opens on its own the first time you launch MacStayOn, and shows what's new after an update |
-| **Updates** | **Check for Updates…** — downloads/installs from GitHub Releases when a newer build exists (turns into **Update x.y.z** if one is waiting) |
+| **Updates** | Updates install **automatically**: downloaded in the background, installed only while Stay Awake is **off** (never mid-session), then MacStayOn reopens with what's new. **Check for Updates…** checks now. Turn automatic installs off in the guide's Updates step, and the button turns into **Update x.y.z** when one is waiting |
 | **Quit** | Restores sleep settings and exits |
 
 Nothing is sent to a server.

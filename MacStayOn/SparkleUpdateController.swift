@@ -55,6 +55,21 @@ final class SparkleUpdaterDelegate: NSObject, SPUUpdaterDelegate, SPUStandardUse
         immediateFocus
     }
 
+    /// Automatic updates: Sparkle has downloaded one and would install it on
+    /// quit. Hand the "install now" action to the gate, which runs it once
+    /// Stay Awake is off (installing restarts the app, and quitting turns
+    /// Stay Awake off). If the gate never runs it, it still installs on quit.
+    nonisolated func updater(
+        _ updater: SPUUpdater,
+        willInstallUpdateOnQuit item: SUAppcastItem,
+        immediateInstallationBlock immediateInstallHandler: @escaping () -> Void
+    ) -> Bool {
+        Task { @MainActor in
+            SparkleUpdateController.installGate?.updateReady(install: immediateInstallHandler)
+        }
+        return true
+    }
+
     nonisolated func standardUserDriverWillHandleShowingUpdate(
         _ handleShowingUpdate: Bool,
         forUpdate update: SUAppcastItem,
@@ -91,6 +106,24 @@ final class SparkleUpdaterDelegate: NSObject, SPUUpdaterDelegate, SPUStandardUse
 @MainActor
 enum SparkleUpdateController {
     private static var updaterController: SPUStandardUpdaterController?
+    /// Holds a downloaded automatic update until Stay Awake is off.
+    static var installGate: UpdateInstallGate?
+
+    /// "Install updates automatically" (Sparkle's automatic downloads). On by
+    /// default from Info.plist; the guide's Updates step can switch it off.
+    static var installsAutomatically: Bool {
+        get {
+            updaterController?.updater.automaticallyDownloadsUpdates
+                ?? (UserDefaults.standard.object(forKey: "SUAutomaticallyUpdate") as? Bool ?? true)
+        }
+        set {
+            if let updater = updaterController?.updater {
+                updater.automaticallyDownloadsUpdates = newValue
+            } else {
+                UserDefaults.standard.set(newValue, forKey: "SUAutomaticallyUpdate")
+            }
+        }
+    }
     private static let updaterDelegate = SparkleUpdaterDelegate()
 
     /// Feed URL + public EdDSA key present and not placeholders.

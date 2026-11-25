@@ -33,6 +33,8 @@
 		8CEFDAA5508E9FEF5B82C339 /* LidAngleMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1861888FA20FA7D488B3147 /* LidAngleMonitor.swift */; };
 		994BC54195A08448F33476C1 /* SleepSafetyResources.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55BE46A98A53AE3C8EB2853F /* SleepSafetyResources.swift */; };
 		99829E353A6A4145112AB6C1 /* HardwareProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27B3C8D004F277239D200C6C /* HardwareProfile.swift */; };
+		9DED69EA574FA013D7378F29 /* AutoUpdate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66F388ED37B6CE541348632C /* AutoUpdate.swift */; };
+		A9034DAFEE96219441EE1344 /* UpdateInstallGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45BEE5FF57557C97C71E433A /* UpdateInstallGateTests.swift */; };
 		C3101EEF80DBA82F9E6DA93C /* LampOverlayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58E95FE9BD2BF13E15BBFCE5 /* LampOverlayTests.swift */; };
 		C80C9C1F2CFB6C4AD7A85BF2 /* TestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF7659A0879EC73A71B4072B /* TestSupport.swift */; };
 		CC0BF5BEC26370B5DDD51AD0 /* KeyboardShortcutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E60C30B29DCC396C68532FA /* KeyboardShortcutTests.swift */; };
@@ -44,6 +46,7 @@
 		E5BDC53BC57DA4B3618BFFD1 /* LampView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73FA91D9A573DF4E78899505 /* LampView.swift */; };
 		EFD7A5456E56A54BCF03BD43 /* OnboardingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C93BFDA304B47741EB909576 /* OnboardingTests.swift */; };
 		F063D11696643220875CA735 /* ScreenFlashAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D114C7D8FD0580CC98FE07A /* ScreenFlashAlert.swift */; };
+		F1EB555B219856039C9E11E7 /* AutoUpdate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66F388ED37B6CE541348632C /* AutoUpdate.swift */; };
 		F4A203C6768F9BA4149682A0 /* LaunchAtLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E1252DC44B29CF94F5812E2 /* LaunchAtLogin.swift */; };
 		F5594E73DB01BF9B4EA9F159 /* GuidePermissions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 904F1CA62E9F1F5AD50094D8 /* GuidePermissions.swift */; };
 		F829DE180E0AEF1C4949D1BD /* DisplayDarkenOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B184CC33D848ECAD058D8DB /* DisplayDarkenOverlay.swift */; };
@@ -65,6 +68,7 @@
 		2D114C7D8FD0580CC98FE07A /* ScreenFlashAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenFlashAlert.swift; sourceTree = "<group>"; };
 		3C4A71BAB6D3D1020EEB6AFC /* SparkleUpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdateController.swift; sourceTree = "<group>"; };
 		41AF605B3F140A8DA38BC681 /* PrivilegedScripts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivilegedScripts.swift; sourceTree = "<group>"; };
+		45BEE5FF57557C97C71E433A /* UpdateInstallGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateInstallGateTests.swift; sourceTree = "<group>"; };
 		4E60C30B29DCC396C68532FA /* KeyboardShortcutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardShortcutTests.swift; sourceTree = "<group>"; };
 		50E2FCBC3F6509D33A94F3C0 /* PrivilegedScriptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivilegedScriptTests.swift; sourceTree = "<group>"; };
 		55BE46A98A53AE3C8EB2853F /* SleepSafetyResources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepSafetyResources.swift; sourceTree = "<group>"; };
@@ -72,6 +76,7 @@
 		5D5B0E6326B2762E8D6D6FBC /* MacStayOn.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MacStayOn.entitlements; sourceTree = "<group>"; };
 		5E1252DC44B29CF94F5812E2 /* LaunchAtLogin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLogin.swift; sourceTree = "<group>"; };
 		63BFA15901EA4552DFB5ED84 /* MacStayOn-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MacStayOn-Bridging-Header.h"; sourceTree = "<group>"; };
+		66F388ED37B6CE541348632C /* AutoUpdate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoUpdate.swift; sourceTree = "<group>"; };
 		73FA91D9A573DF4E78899505 /* LampView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LampView.swift; sourceTree = "<group>"; };
 		80DF207C4E039C39F29FEA7B /* CenterTopMenuPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CenterTopMenuPanel.swift; sourceTree = "<group>"; };
 		904F1CA62E9F1F5AD50094D8 /* GuidePermissions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidePermissions.swift; sourceTree = "<group>"; };
@@ -115,6 +120,7 @@
 				CFC87360FF69778D56D66609 /* ProcessRunnerTests.swift */,
 				FDB103E5973E2F05F7ED567E /* SleepAssertionManagerTests.swift */,
 				FF7659A0879EC73A71B4072B /* TestSupport.swift */,
+				45BEE5FF57557C97C71E433A /* UpdateInstallGateTests.swift */,
 			);
 			path = MacStayOnTests;
 			sourceTree = "<group>";
@@ -123,6 +129,7 @@
 			isa = PBXGroup;
 			children = (
 				DD81DF72ADB6F9916C297486 /* Assets.xcassets */,
+				66F388ED37B6CE541348632C /* AutoUpdate.swift */,
 				80DF207C4E039C39F29FEA7B /* CenterTopMenuPanel.swift */,
 				1B184CC33D848ECAD058D8DB /* DisplayDarkenOverlay.swift */,
 				904F1CA62E9F1F5AD50094D8 /* GuidePermissions.swift */,
@@ -267,6 +274,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F1EB555B219856039C9E11E7 /* AutoUpdate.swift in Sources */,
 				515B12DB9008A94F0616B991 /* DisplayDarkenOverlay.swift in Sources */,
 				99829E353A6A4145112AB6C1 /* HardwareProfile.swift in Sources */,
 				23E69C3E8F342E6772B8943B /* KeyboardShortcut.swift in Sources */,
@@ -289,6 +297,7 @@
 				31FBF53856FB7B92DA1827EC /* SleepAssertionManagerTests.swift in Sources */,
 				6623DC36A1FA7BB55285444E /* SleepSafetyResources.swift in Sources */,
 				C80C9C1F2CFB6C4AD7A85BF2 /* TestSupport.swift in Sources */,
+				A9034DAFEE96219441EE1344 /* UpdateInstallGateTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -296,6 +305,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9DED69EA574FA013D7378F29 /* AutoUpdate.swift in Sources */,
 				38FE80004493B705CE5D32CF /* CenterTopMenuPanel.swift in Sources */,
 				F829DE180E0AEF1C4949D1BD /* DisplayDarkenOverlay.swift in Sources */,
 				F5594E73DB01BF9B4EA9F159 /* GuidePermissions.swift in Sources */,
@@ -329,7 +339,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = MacStayOn/MacStayOn.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 37;
+				CURRENT_PROJECT_VERSION = 38;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MacStayOn/Info.plist;
@@ -337,7 +347,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.5.2;
+				MARKETING_VERSION = 1.5.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.markdebartolo.MacStayOn;
 				PRODUCT_NAME = MacStayOn;
 				SDKROOT = macosx;
@@ -438,7 +448,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = MacStayOn/MacStayOn.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 37;
+				CURRENT_PROJECT_VERSION = 38;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MacStayOn/Info.plist;
@@ -446,7 +456,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.5.2;
+				MARKETING_VERSION = 1.5.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.markdebartolo.MacStayOn;
 				PRODUCT_NAME = MacStayOn;
 				SDKROOT = macosx;
