@@ -60,6 +60,7 @@ targets:
           - LaunchAtLogin.swift
           - SingleInstance.swift
           - GuideWindow.swift
+          - GuidePermissions.swift
           - Assets.xcassets
           - Info.plist
           - MacStayOn.entitlements

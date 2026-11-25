@@ -54,7 +54,9 @@ enum LaunchGuideDecider {
 enum WhatsNew {
     static let releases: [(version: String, notes: [String])] = [
         ("1.5.0", [
-            "A built-in guide walks you through setup, the keyboard shortcut and updates. Open it any time with the ? button in the menu.",
+            "A built-in guide walks you through setup, permissions, the keyboard shortcut and updates. Open it any time with the ? button in the menu.",
+            "The Permissions step shows what MacStayOn may ask for and why, with live status and a button to fix each one.",
+            "macOS now lists MacStayOn's background safety net under its own name instead of \"bash\".",
             "If MacStayOn is running from Downloads, it offers to move itself to Applications.",
         ]),
         ("1.4.0", [

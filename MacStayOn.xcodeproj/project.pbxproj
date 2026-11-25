@@ -45,6 +45,7 @@
 		EFD7A5456E56A54BCF03BD43 /* OnboardingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C93BFDA304B47741EB909576 /* OnboardingTests.swift */; };
 		F063D11696643220875CA735 /* ScreenFlashAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D114C7D8FD0580CC98FE07A /* ScreenFlashAlert.swift */; };
 		F4A203C6768F9BA4149682A0 /* LaunchAtLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E1252DC44B29CF94F5812E2 /* LaunchAtLogin.swift */; };
+		F5594E73DB01BF9B4EA9F159 /* GuidePermissions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 904F1CA62E9F1F5AD50094D8 /* GuidePermissions.swift */; };
 		F829DE180E0AEF1C4949D1BD /* DisplayDarkenOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B184CC33D848ECAD058D8DB /* DisplayDarkenOverlay.swift */; };
 		F92B6F7B687EB64657117621 /* HardwareProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27B3C8D004F277239D200C6C /* HardwareProfile.swift */; };
 		FA8CDD05B8A989783919DBF0 /* ProcessRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC942E6C2132520704B00FE8 /* ProcessRunner.swift */; };
@@ -73,6 +74,7 @@
 		63BFA15901EA4552DFB5ED84 /* MacStayOn-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MacStayOn-Bridging-Header.h"; sourceTree = "<group>"; };
 		73FA91D9A573DF4E78899505 /* LampView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LampView.swift; sourceTree = "<group>"; };
 		80DF207C4E039C39F29FEA7B /* CenterTopMenuPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CenterTopMenuPanel.swift; sourceTree = "<group>"; };
+		904F1CA62E9F1F5AD50094D8 /* GuidePermissions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidePermissions.swift; sourceTree = "<group>"; };
 		94B1E50128192B0E52ADC3EB /* Onboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Onboarding.swift; sourceTree = "<group>"; };
 		995FB150C6E8801985074DEA /* ParsingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsingTests.swift; sourceTree = "<group>"; };
 		9C536038A4315C1801E0E6F7 /* LampOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LampOverlay.swift; sourceTree = "<group>"; };
@@ -123,6 +125,7 @@
 				DD81DF72ADB6F9916C297486 /* Assets.xcassets */,
 				80DF207C4E039C39F29FEA7B /* CenterTopMenuPanel.swift */,
 				1B184CC33D848ECAD058D8DB /* DisplayDarkenOverlay.swift */,
+				904F1CA62E9F1F5AD50094D8 /* GuidePermissions.swift */,
 				F1378A0C9EA04E1E761593A9 /* GuideWindow.swift */,
 				27B3C8D004F277239D200C6C /* HardwareProfile.swift */,
 				EF158FFE4308ECB5751ADE98 /* Info.plist */,
@@ -295,6 +298,7 @@
 			files = (
 				38FE80004493B705CE5D32CF /* CenterTopMenuPanel.swift in Sources */,
 				F829DE180E0AEF1C4949D1BD /* DisplayDarkenOverlay.swift in Sources */,
+				F5594E73DB01BF9B4EA9F159 /* GuidePermissions.swift in Sources */,
 				4D4F31AA1D5B0F2DF3E5B8DC /* GuideWindow.swift in Sources */,
 				F92B6F7B687EB64657117621 /* HardwareProfile.swift in Sources */,
 				74279924267F112BF81DAD9D /* KeyboardShortcut.swift in Sources */,

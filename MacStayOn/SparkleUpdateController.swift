@@ -108,13 +108,17 @@ enum SparkleUpdateController {
         return true
     }
 
-    static func startIfConfigured() {
+    /// `askForNotifications` is false on first launch: the guide's Permissions
+    /// step explains and asks instead of a cold prompt on top of the guide.
+    static func startIfConfigured(askForNotifications: Bool = true) {
         #if DEBUG
         return
         #else
         guard isConfigured, updaterController == nil else { return }
         // Soft-ask so gentle reminders can post when a background check finds an update.
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        if askForNotifications {
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        }
         let controller = SPUStandardUpdaterController(
             startingUpdater: true,
             updaterDelegate: updaterDelegate,

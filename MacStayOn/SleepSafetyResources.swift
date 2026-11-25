@@ -109,6 +109,8 @@ enum SleepSafetyResources {
     <dict>
     	<key>Label</key>
     	<string>com.markdebartolo.MacStayOn.sleep-safety</string>
+    	<key>AssociatedBundleIdentifiers</key>
+    	<string>com.markdebartolo.MacStayOn</string>
     	<key>ProgramArguments</key>
     	<array>
     		<string>/bin/bash</string>

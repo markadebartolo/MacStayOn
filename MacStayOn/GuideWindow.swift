@@ -1,8 +1,9 @@
 import AppKit
+import ServiceManagement
 import SwiftUI
 
 enum GuidePage: Int, CaseIterable {
-    case welcome, turnOn, glow, shortcut, updates
+    case welcome, turnOn, glow, shortcut, permissions, updates
 }
 
 final class GuideModel: ObservableObject {
@@ -14,6 +15,7 @@ final class GuideModel: ObservableObject {
     @Published var mode: Mode = .guide
     @Published var page: GuidePage = .welcome
     @Published var moveError: String?
+    @Published var safetyNet: SafetyNetPermission.Status = .notInstalled
 }
 
 /// The in-app walkthrough: shown on first launch, as a "what's new" screen
@@ -24,17 +26,21 @@ final class GuideWindowController {
     private let keyboardShortcut: KeyboardShortcutController
     private let launchAtLogin: LaunchAtLoginController
     private let checkForUpdates: () -> Void
+    let notifications: NotificationPermission
     private var window: NSWindow?
+    private var closeObserver: NSObjectProtocol?
 
     init(
         sleepManager: SleepAssertionManager,
         keyboardShortcut: KeyboardShortcutController,
         launchAtLogin: LaunchAtLoginController,
+        notifications: NotificationPermission = NotificationPermission(),
         checkForUpdates: @escaping () -> Void
     ) {
         self.sleepManager = sleepManager
         self.keyboardShortcut = keyboardShortcut
         self.launchAtLogin = launchAtLogin
+        self.notifications = notifications
         self.checkForUpdates = checkForUpdates
     }
 
@@ -80,11 +86,21 @@ final class GuideWindowController {
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
         window.isReleasedWhenClosed = false
+        // Closing the guide without answering the notifications row: ask once,
+        // now that the guide has explained why (never on top of the guide).
+        closeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            self?.notifications.requestIfNotAsked()
+        }
         window.contentView = NSHostingView(rootView: GuideView(
             model: model,
             sleepManager: sleepManager,
             keyboardShortcut: keyboardShortcut,
             launchAtLogin: launchAtLogin,
+            notifications: notifications,
             actions: GuideActions(
                 moveToApplications: { [weak self] in self?.moveToApplications() },
                 checkForUpdates: checkForUpdates,
@@ -115,8 +131,8 @@ struct GuideActions {
 
 private enum GuideLayout {
     static let width: CGFloat = 620
-    static let height: CGFloat = 540
-    static let artHeight: CGFloat = 180
+    static let height: CGFloat = 600
+    static let artHeight: CGFloat = 165
 }
 
 private enum GuidePalette {
@@ -137,6 +153,7 @@ private struct GuideView: View {
     @ObservedObject var sleepManager: SleepAssertionManager
     @ObservedObject var keyboardShortcut: KeyboardShortcutController
     @ObservedObject var launchAtLogin: LaunchAtLoginController
+    @ObservedObject var notifications: NotificationPermission
     let actions: GuideActions
 
     var body: some View {
@@ -216,6 +233,7 @@ private struct GuideView: View {
         case .turnOn: return "Turn Stay Awake on"
         case .glow: return "On, with a warm glow"
         case .shortcut: return "Keyboard shortcut"
+        case .permissions: return "Permissions"
         case .updates: return "Staying up to date"
         }
     }
@@ -227,6 +245,7 @@ private struct GuideView: View {
         case .turnOn: turnOnContent
         case .glow: glowContent
         case .shortcut: shortcutContent
+        case .permissions: permissionsContent
         case .updates: updatesContent
         }
     }
@@ -306,19 +325,11 @@ private struct GuideView: View {
     private var shortcutContent: some View {
         VStack(alignment: .leading, spacing: 14) {
             Prose("Hold **all four arrow keys and Space** together, from any app. Off is instant; On asks for Touch ID.")
+            Prose("Holding five keys at once is deliberate, so it never fires by accident. Some keyboards can't register five keys together; if nothing happens, try another keyboard.")
+                .foregroundStyle(.secondary)
             if keyboardShortcut.needsPermission {
-                VStack(alignment: .leading, spacing: 8) {
-                    InfoRow(symbol: "exclamationmark.triangle.fill", tint: GuidePalette.orange,
-                            text: "**Needs Input Monitoring permission.** MacStayOn only listens for this one combination; your typing still goes to your apps.")
-                    Button("Open Input Monitoring") { keyboardShortcut.openPermissionSettings() }
-                        .buttonStyle(.borderedProminent)
-                        .tint(GuidePalette.orange)
-                        .padding(.leading, 30)
-                    Prose("Switch **MacStayOn** on in the list. Not listed? Click **+**, choose **Applications → MacStayOn**, then switch it on. If asked, click **Quit & Reopen**.")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .padding(.leading, 30)
-                }
+                InfoRow(symbol: "arrow.right.circle.fill", tint: GuidePalette.orange,
+                        text: "The shortcut needs **Input Monitoring** permission. The next step sets it up.")
             } else {
                 InfoRow(symbol: "checkmark.circle.fill", tint: GuidePalette.green,
                         text: "**Shortcut is ready.** Try it any time.")
@@ -327,27 +338,90 @@ private struct GuideView: View {
         .onAppear { keyboardShortcut.refreshPermission() }
     }
 
+    private var permissionsContent: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            Prose("Everything MacStayOn may ask for, and why. Status updates as you change settings.")
+                .foregroundStyle(.secondary)
+            PermissionRow(symbol: "touchid", title: "Administrator approval",
+                          detail: "Asked each time you turn on, with Touch ID or your password. It's what lets the Mac stay awake with the lid closed.") {
+                Text("Each Turn On")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            PermissionRow(symbol: "keyboard", title: "Input Monitoring",
+                          detail: "Lets **← → ↑ ↓ + Space** work from any app. MacStayOn only listens for that combination.") {
+                if keyboardShortcut.needsPermission {
+                    ActionButton("Open Settings") { keyboardShortcut.openPermissionSettings() }
+                } else {
+                    StatusBadge(text: "Allowed")
+                }
+            }
+            PermissionRow(symbol: "bell.badge", title: "Notifications",
+                          detail: "A heads-up when an update is ready.") {
+                switch notifications.status {
+                case .allowed:
+                    StatusBadge(text: "Allowed")
+                case .notAsked:
+                    ActionButton("Allow") { notifications.request() }
+                case .denied:
+                    ActionButton("Open Settings") { notifications.openSettings() }
+                case .unknown, .unavailable:
+                    Text("—").foregroundStyle(.secondary)
+                }
+            }
+            PermissionRow(symbol: "lock.shield", title: "Background safety net",
+                          detail: "Runs only while Stay Awake is on, and restores normal sleep if MacStayOn is force-quit. If macOS says **Background Items Added**, keep MacStayOn allowed.") {
+                switch model.safetyNet {
+                case .allowed:
+                    StatusBadge(text: "Allowed")
+                case .blocked:
+                    ActionButton("Turn On in Settings") { SafetyNetPermission.openLoginItemsSettings() }
+                case .notInstalled:
+                    Text("Added when on")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            PermissionRow(symbol: "power", title: "Open at login (optional)",
+                          detail: "Starts MacStayOn when you log in. Stay Awake still starts Off.") {
+                if launchAtLogin.needsApproval {
+                    ActionButton("Approve") { SMAppService.openSystemSettingsLoginItems() }
+                } else {
+                    Toggle("", isOn: Binding(
+                        get: { launchAtLogin.isEnabled },
+                        set: { launchAtLogin.setEnabled($0) }
+                    ))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                }
+            }
+        }
+        .onAppear(perform: refreshPermissions)
+        // Coming back from System Settings: show what changed.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            refreshPermissions()
+        }
+    }
+
+    private func refreshPermissions() {
+        keyboardShortcut.refreshPermission()
+        notifications.refresh()
+        launchAtLogin.refresh()
+        model.safetyNet = SafetyNetPermission.status()
+    }
+
     private var updatesContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             StepRow(number: 1, text: "MacStayOn checks **once a day** and never installs without asking.")
-            StepRow(number: 2, text: "When one is ready, **Updates** in the menu turns into an orange **Update** button. Click it, then **Install Update**.")
-            StepRow(number: 3, text: "Updating restarts MacStayOn, which turns Stay Awake off. Turn it back on afterward.")
-            HStack(spacing: 14) {
-                Toggle(isOn: Binding(
-                    get: { launchAtLogin.isEnabled },
-                    set: { launchAtLogin.setEnabled($0) }
-                )) {
-                    Text("Open MacStayOn when I log in")
-                        .font(.system(size: 13))
-                }
-                .toggleStyle(.switch)
-                .controlSize(.small)
+            StepRow(number: 2, text: "When one is ready, **Updates** in the menu turns into an orange **Update** button (and you get a notification, if allowed). Click it, then **Install Update**.")
+            StepRow(number: 3, text: "Updating restarts MacStayOn, which turns Stay Awake off. Turn it back on afterward. Your settings and permissions carry over.")
+            HStack {
                 Spacer()
                 Button("Check for Updates Now") { actions.checkForUpdates() }
             }
             .padding(.top, 4)
         }
-        .onAppear { launchAtLogin.refresh() }
     }
 
     // MARK: After an update
@@ -418,6 +492,7 @@ private struct GuideView: View {
         case .turnOn: TurnOnArt()
         case .glow: GlowArt()
         case .shortcut: KeysArt()
+        case .permissions: PermissionsArt()
         case .updates: UpdateArt()
         }
     }
@@ -484,7 +559,80 @@ private struct Chip: View {
     }
 }
 
+private struct PermissionRow<Trailing: View>: View {
+    let symbol: String
+    let title: String
+    let detail: String
+    @ViewBuilder let trailing: () -> Trailing
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: symbol)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(GuidePalette.orange)
+                .frame(width: 32, height: 32)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(GuidePalette.orange.opacity(0.13)))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(.init(detail))
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 10)
+            trailing()
+                .frame(minWidth: 96, alignment: .trailing)
+        }
+    }
+}
+
+private struct StatusBadge: View {
+    let text: String
+    var body: some View {
+        Label(text, systemImage: "checkmark.circle.fill")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(GuidePalette.green)
+    }
+}
+
+private struct ActionButton: View {
+    let title: String
+    let action: () -> Void
+    init(_ title: String, action: @escaping () -> Void) {
+        self.title = title
+        self.action = action
+    }
+    var body: some View {
+        Button(title, action: action)
+            .buttonStyle(.borderedProminent)
+            .tint(GuidePalette.orange)
+            .controlSize(.small)
+    }
+}
+
 // MARK: - Illustrations
+
+/// The permissions as a row of checked tiles.
+private struct PermissionsArt: View {
+    var body: some View {
+        HStack(spacing: 16) {
+            ForEach(["touchid", "keyboard", "bell.badge", "lock.shield", "power"], id: \.self) { symbol in
+                ZStack(alignment: .bottomTrailing) {
+                    Image(systemName: symbol)
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .frame(width: 58, height: 58)
+                        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.1)))
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 17))
+                        .foregroundStyle(.white, GuidePalette.green)
+                        .offset(x: 5, y: 5)
+                }
+            }
+        }
+    }
+}
 
 /// A menu bar with the MacStayOn moon picked out.
 private struct MenuBarArt: View {

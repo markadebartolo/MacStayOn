@@ -65,7 +65,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Off / no auto admin at login — Stay Awake only if an existing session resumes.
         sleepManager.applyPersistedStateIfNeeded()
         // Sparkle daily check (Release only); menu “Check for Updates…” always available.
-        SparkleUpdateController.startIfConfigured()
+        let guideWillAsk = launchGuide == .welcome || launchGuide == .resumeAfterMove
+        SparkleUpdateController.startIfConfigured(askForNotifications: !guideWillAsk)
         // While On, a glow and pull chain hang from the menu bar; the chain turns Off.
         lamp.onPull = { [sleepManager] in
             sleepManager.setEnabled(false)

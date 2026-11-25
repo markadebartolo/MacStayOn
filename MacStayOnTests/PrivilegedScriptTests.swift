@@ -155,6 +155,8 @@ final class PrivilegedScriptTests: XCTestCase {
             PropertyListSerialization.propertyList(from: Data(contentsOf: plistURL), format: nil) as? [String: Any]
         )
         XCTAssertEqual(plist["Label"] as? String, SleepSafetyResources.launchdLabel)
+        // macOS lists the background item under MacStayOn (not "bash") in Login Items & Extensions.
+        XCTAssertEqual(plist["AssociatedBundleIdentifiers"] as? String, "com.markdebartolo.MacStayOn")
         XCTAssertEqual(
             plist["ProgramArguments"] as? [String],
             ["/bin/bash", "/Library/Application Support/MacStayOn/sleep-safety.sh"]
