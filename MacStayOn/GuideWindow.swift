@@ -32,6 +32,7 @@ final class GuideWindowController {
     let notifications: NotificationPermission
     private var window: NSWindow?
     private var closeObserver: NSObjectProtocol?
+    private var activeObserver: NSObjectProtocol?
 
     init(
         sleepManager: SleepAssertionManager,
@@ -60,7 +61,10 @@ final class GuideWindowController {
             showGuide(at: .turnOn)
         case let .updated(from, to, wasOn):
             model.mode = .updated(version: to, notes: WhatsNew.notes(since: from), stayAwakeWasOn: wasOn)
-            present()
+            // An update relaunches MacStayOn in the background, often while the user
+            // is typing in another app: show what's new over their work, but leave
+            // the keyboard where it is (a stray Return would otherwise hit Done).
+            present(takeFocus: false)
         }
     }
 
@@ -71,13 +75,33 @@ final class GuideWindowController {
         present()
     }
 
-    private func present() {
+    /// `takeFocus`: the user asked for the guide (first launch, the ? button), so
+    /// bring MacStayOn forward. Otherwise just put the window in front without
+    /// activating; clicking it brings MacStayOn forward as usual.
+    private func present(takeFocus: Bool = true) {
         model.autoInstall = autoInstall.get()
         let window = self.window ?? makeWindow()
         self.window = window
         if !window.isVisible { window.center() }
-        NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
+        if takeFocus {
+            Self.usualPlacement(window)
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+        } else {
+            // Make it MacStayOn's key window (that's what moves it onto the Space
+            // the user is on) but don't activate the app, so the keyboard stays
+            // in their app. Float it until they click it, so their own window
+            // doesn't cover it.
+            Self.usualPlacement(window)
+            window.level = .floating
+            window.makeKeyAndOrderFront(nil)
+        }
+    }
+
+    /// Opens on the Space the user is on, including over a full-screen app.
+    private static func usualPlacement(_ window: NSWindow) {
+        window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
+        window.level = .normal
     }
 
     private func makeWindow() -> NSWindow {
@@ -103,6 +127,16 @@ final class GuideWindowController {
             queue: .main
         ) { [weak self] _ in
             self?.notifications.requestIfNotAsked()
+        }
+        // Once the user clicks it (MacStayOn becomes active), it's a normal window again.
+        activeObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak window] _ in
+            MainActor.assumeIsolated {
+                if let window { Self.usualPlacement(window) }
+            }
         }
         window.contentView = NSHostingView(rootView: GuideView(
             model: model,
