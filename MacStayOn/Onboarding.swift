@@ -53,6 +53,9 @@ enum LaunchGuideDecider {
 /// Highlights shown on the "updated" screen, newest first.
 enum WhatsNew {
     static let releases: [(version: String, notes: [String])] = [
+        ("1.5.2", [
+            "The guide's Turn On step now shows both ways in: the menu, and the ← → ↑ ↓ + Space shortcut (with whether it's ready to use).",
+        ]),
         ("1.5.1", [
             "The glow and pull chain are now a quick confirmation: they show while Stay Awake turns on or off, then tuck away, instead of staying on screen.",
             "To turn off, use Restore in the menu, the ← → ↑ ↓ + Space shortcut, or Quit.",

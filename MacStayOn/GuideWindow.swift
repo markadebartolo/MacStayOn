@@ -3,7 +3,7 @@ import ServiceManagement
 import SwiftUI
 
 enum GuidePage: Int, CaseIterable {
-    case welcome, turnOn, glow, shortcut, permissions, updates
+    case welcome, turnOn, glow, permissions, updates
 }
 
 final class GuideModel: ObservableObject {
@@ -232,7 +232,6 @@ private struct GuideView: View {
         case .welcome: return "Welcome to MacStayOn"
         case .turnOn: return "Turn Stay Awake on"
         case .glow: return "A glow confirms it"
-        case .shortcut: return "Keyboard shortcut"
         case .permissions: return "Permissions"
         case .updates: return "Staying up to date"
         }
@@ -244,7 +243,6 @@ private struct GuideView: View {
         case .welcome: welcomeContent
         case .turnOn: turnOnContent
         case .glow: glowContent
-        case .shortcut: shortcutContent
         case .permissions: permissionsContent
         case .updates: updatesContent
         }
@@ -297,12 +295,36 @@ private struct GuideView: View {
     }
 
     private var turnOnContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionLabel("From the menu")
             StepRow(number: 1, text: "Click the **moon** in the menu bar.")
             StepRow(number: 2, text: "Click **Stay Awake**, read the short heat warning, then click **Turn On**.")
             StepRow(number: 3, text: "Approve with **Touch ID** (or your password). Each Turn On asks once.")
+            SectionLabel("Or with the keyboard, from any app")
+                .padding(.top, 8)
+            HStack(alignment: .center, spacing: 14) {
+                InlineShortcutKeys()
+                Prose("Hold all five together, then approve with **Touch ID**. Hold them again to turn off, instantly.")
+            }
+            shortcutStatus
             Prose("Cancel at any step and MacStayOn stays Off. Nothing changes.")
                 .foregroundStyle(.secondary)
+                .padding(.top, 2)
+        }
+        .onAppear { keyboardShortcut.refreshPermission() }
+    }
+
+    @ViewBuilder
+    private var shortcutStatus: some View {
+        if keyboardShortcut.needsPermission {
+            HStack(spacing: 10) {
+                InfoRow(symbol: "exclamationmark.triangle.fill", tint: GuidePalette.orange,
+                        text: "The shortcut needs **Input Monitoring** permission.")
+                ActionButton("Set Up") { model.page = .permissions }
+            }
+        } else {
+            InfoRow(symbol: "checkmark.circle.fill", tint: GuidePalette.green,
+                    text: "**Shortcut is ready.** If nothing happens, your keyboard may not register five keys at once.")
         }
     }
 
@@ -321,22 +343,6 @@ private struct GuideView: View {
             InfoRow(symbol: "thermometer.medium", tint: GuidePalette.orange,
                     text: "Closing the lid? Keep the Mac out of bags and blankets. **Heat & batt.** turns Stay Awake off at low battery or serious heat.")
         }
-    }
-
-    private var shortcutContent: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Prose("Hold **all four arrow keys and Space** together, from any app. Off is instant; On asks for Touch ID.")
-            Prose("Holding five keys at once is deliberate, so it never fires by accident. Some keyboards can't register five keys together; if nothing happens, try another keyboard.")
-                .foregroundStyle(.secondary)
-            if keyboardShortcut.needsPermission {
-                InfoRow(symbol: "arrow.right.circle.fill", tint: GuidePalette.orange,
-                        text: "The shortcut needs **Input Monitoring** permission. The next step sets it up.")
-            } else {
-                InfoRow(symbol: "checkmark.circle.fill", tint: GuidePalette.green,
-                        text: "**Shortcut is ready.** Try it any time.")
-            }
-        }
-        .onAppear { keyboardShortcut.refreshPermission() }
     }
 
     private var permissionsContent: some View {
@@ -492,7 +498,6 @@ private struct GuideView: View {
         case .welcome: MenuBarArt()
         case .turnOn: TurnOnArt()
         case .glow: GlowArt()
-        case .shortcut: KeysArt()
         case .permissions: PermissionsArt()
         case .updates: UpdateArt()
         }
@@ -508,6 +513,15 @@ private struct Prose: View {
         Text(.init(markdown))
             .font(.system(size: 13))
             .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct SectionLabel: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+    var body: some View {
+        Text(text)
+            .font(.system(size: 13, weight: .semibold))
     }
 }
 
@@ -736,37 +750,42 @@ private struct GlowArt: View {
 }
 
 /// ← → ↑ ↓ + Space as keycaps.
-private struct KeysArt: View {
+/// ← → ↑ ↓ + Space as small keycaps, for the light content area.
+private struct InlineShortcutKeys: View {
     var body: some View {
-        HStack(spacing: 22) {
-            VStack(spacing: 4) {
-                Keycap(label: "↑")
-                HStack(spacing: 4) {
-                    Keycap(label: "←")
-                    Keycap(label: "↓")
-                    Keycap(label: "→")
-                }
-            }
+        HStack(spacing: 4) {
+            ForEach(["←", "→", "↑", "↓"], id: \.self) { Keycap(label: $0, width: 26, height: 26, onLight: true) }
             Text("+")
-                .font(.system(size: 26, weight: .bold))
-                .foregroundStyle(.white.opacity(0.7))
-            Keycap(label: "space", width: 190)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 2)
+            Keycap(label: "space", width: 66, height: 26, onLight: true)
         }
+        .fixedSize()
+        .accessibilityElement()
+        .accessibilityLabel("Left, right, up and down arrows plus Space")
     }
 }
 
 private struct Keycap: View {
     let label: String
     var width: CGFloat = 44
+    var height: CGFloat = 44
+    /// On a light background: add an outline and a softer edge so the key reads.
+    var onLight = false
     var body: some View {
         Text(label)
-            .font(.system(size: label.count > 1 ? 13 : 18, weight: .semibold))
+            .font(.system(size: label.count > 1 ? height * 0.36 : height * 0.42, weight: .semibold))
             .foregroundStyle(GuidePalette.ink)
-            .frame(width: width, height: 44)
+            .frame(width: width, height: height)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(LinearGradient(colors: [.white, Color(white: 0.84)], startPoint: .top, endPoint: .bottom))
-                    .shadow(color: .black.opacity(0.45), radius: 0, x: 0, y: 3)
+                RoundedRectangle(cornerRadius: height * 0.2, style: .continuous)
+                    .fill(LinearGradient(colors: [.white, Color(white: onLight ? 0.9 : 0.84)], startPoint: .top, endPoint: .bottom))
+                    .shadow(color: .black.opacity(onLight ? 0.25 : 0.45), radius: 0, x: 0, y: onLight ? 2 : 3)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: height * 0.2, style: .continuous)
+                    .stroke(Color.black.opacity(onLight ? 0.15 : 0), lineWidth: 0.5)
             )
     }
 }
