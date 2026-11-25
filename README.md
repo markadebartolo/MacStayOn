@@ -35,7 +35,8 @@
 - **Heat & battery guard** — auto Off at a chosen battery floor (10–50%) or on serious heat
 - **Open at login** — optional Login Item (`SMAppService`); app launches Off — Stay Awake never auto-enables
 - **In-menu confirms** — heat warning and lid-open “turn off?” stay in the panel (fewer separate prompts)
-- **Session chip** — elapsed time; expand for apps that were working (local only)
+- **Session chip** — elapsed time of the current or last Stay Awake session
+- **Keyboard shortcut** — hold **← → ↑ ↓ + Space** together, from any app, to turn Stay Awake on (Touch ID) or off. Needs **Accessibility** access (System Settings → Privacy & Security → Accessibility); MacStayOn only listens — the keys still reach your app
 - **Touch ID admin** — Developer ID build can offer Touch ID for the one-time `pmset` approve
 - **Bag-safe Off** — Off / Quit always restore normal lid sleep (`SleepDisabled=0`) and remove the sleep-safety LaunchDaemon so nothing durable keeps the Mac force-awake
 - **In-app updates** — **Updates** in the menu panel (Sparkle + GitHub Releases appcast); quiet daily check
@@ -87,11 +88,12 @@ Click the menu-bar icon for a **compact horizontal bar** centered under the menu
 | **Heat & batt.** | Toggle + floor **10–50%** battery. Also turns off if macOS reports **serious heat** |
 | **At login** | Open MacStayOn when you log in (System Settings → Login Items). Stay Awake stays **Off** until you turn it on |
 | **Lid-close flash** | While On, closing the lid past ~85° pulses the screen orange until the lid is fully shut (or reopened). Needs a lid-angle sensor; skipped quietly on Macs without one. |
-| **Session** | Duration chip; expand for apps that were working and **Clear last session** |
+| **Session** | Duration of the current or last Stay Awake session |
+| **Shortcut** | Hold **← → ↑ ↓ + Space** anywhere to toggle Stay Awake. On asks for Touch ID; Off is immediate. Shows a link to grant Accessibility access if it's missing |
 | **Updates** | **Check for Updates…** — downloads/installs from GitHub Releases when a newer build exists (turns into **Update x.y.z** if one is waiting) |
 | **Quit** | Restores sleep settings and exits |
 
-Session data stays **on your Mac** — nothing is sent to a server.
+Nothing is sent to a server.
 
 ---
 

@@ -299,6 +299,34 @@ final class SleepAssertionManagerTests: XCTestCase {
         XCTAssertEqual(system.enableCallCount, 2)
     }
 
+    func testKeyboardShortcutTogglesOnAndOff() {
+        let manager = makeManager()
+
+        manager.toggleFromKeyboardShortcut()
+        XCTAssertTrue(manager.isEnabled, "shortcut should go straight to the admin step and turn on")
+        XCTAssertFalse(manager.pendingEnableConfirm)
+        XCTAssertEqual(system.enableCallCount, 1)
+
+        manager.toggleFromKeyboardShortcut()
+        XCTAssertFalse(manager.isEnabled)
+        waitUntil("lid sleep restored") { self.system.sleepDisabled == 0 }
+        XCTAssertEqual(system.enableCallCount, 1, "turning off must not ask for admin")
+    }
+
+    func testKeyboardShortcutIsIgnoredWhileTheAdminDialogIsOpen() {
+        let gate = DispatchSemaphore(value: 0)
+        system.adminDialogGate = gate
+        let manager = SleepAssertionManager(environment: system.makeEnvironment(runsAdminOffMainThread: true))
+        managers.append(manager)
+
+        manager.toggleFromKeyboardShortcut()
+        XCTAssertTrue(manager.isAwaitingAdminApproval)
+        manager.toggleFromKeyboardShortcut() // pressed again while Touch ID is up
+        gate.signal()
+        waitUntil("Stay Awake on") { manager.isEnabled }
+        XCTAssertEqual(system.enableCallCount, 1, "a second chord stacked another admin dialog")
+    }
+
     func testTurnOnEnablesStayAwake() throws {
         let defaults = system.makeDefaults()
         let manager = makeManager(defaults: defaults)

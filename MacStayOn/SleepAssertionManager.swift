@@ -341,6 +341,25 @@ final class SleepAssertionManager: ObservableObject {
         activate()
     }
 
+    /// ←→↑↓ + Space from anywhere. Off is immediate; On goes straight to the
+    /// admin / Touch ID dialog — holding five keys at once is the deliberate step,
+    /// and the in-menu heat confirm lives in a panel that may not be open.
+    func toggleFromKeyboardShortcut() {
+        guard !isInertSecondaryInstance, !isActivating else { return }
+        if isEnabled {
+            setEnabled(false)
+            NSSound(named: "Pop")?.play()
+            return
+        }
+        if isSleepStuckWhileOff {
+            requestRestoreSleepNow()
+            if isSleepStuckWhileOff { return }
+        }
+        pendingEnableConfirm = false
+        pendingLidOpenChoice = false
+        activate()
+    }
+
     /// User canceled the in-menu heat/safety confirm.
     func cancelEnableFromMenu() {
         pendingEnableConfirm = false

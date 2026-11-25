@@ -10,7 +10,8 @@ struct MacStayOnApp: App {
             PopoverRoot(
                 sleepManager: appDelegate.sleepManager,
                 analytics: appDelegate.sleepManager.analytics,
-                launchAtLogin: appDelegate.launchAtLogin
+                launchAtLogin: appDelegate.launchAtLogin,
+                keyboardShortcut: appDelegate.keyboardShortcut
             )
         } label: {
             MenuBarLabel(sleepManager: appDelegate.sleepManager)
@@ -22,6 +23,7 @@ struct MacStayOnApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let sleepManager = SleepAssertionManager()
     let launchAtLogin = LaunchAtLoginController()
+    let keyboardShortcut = KeyboardShortcutController()
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         // Two copies (dist + Debug) share /tmp state and can fight the watchdog.
@@ -49,6 +51,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sleepManager.applyPersistedStateIfNeeded()
         // Sparkle daily check (Release only); menu “Check for Updates…” always available.
         SparkleUpdateController.startIfConfigured()
+        // ←→↑↓ + Space toggles Stay Awake from any app (needs Accessibility).
+        keyboardShortcut.onToggle = { [sleepManager] in
+            sleepManager.toggleFromKeyboardShortcut()
+        }
+        keyboardShortcut.start()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -81,6 +88,7 @@ private struct PopoverRoot: View {
     @ObservedObject var sleepManager: SleepAssertionManager
     @ObservedObject var analytics: SessionAnalytics
     @ObservedObject var launchAtLogin: LaunchAtLoginController
+    @ObservedObject var keyboardShortcut: KeyboardShortcutController
     @ObservedObject private var updateReminders = SparkleUpdateReminderStore.shared
 
     private var isOn: Bool { sleepManager.isEnabled }
@@ -103,7 +111,10 @@ private struct PopoverRoot: View {
                 secondaryNoteStrip
             }
         }
-        .onAppear { launchAtLogin.refresh() }
+        .onAppear {
+            launchAtLogin.refresh()
+            keyboardShortcut.refreshPermission()
+        }
         // Size to content so ON (longer button/session) never clips Quit;
         // CenterTopMenuPanel recenters after the window width changes.
         .fixedSize(horizontal: true, vertical: false)
@@ -116,6 +127,7 @@ private struct PopoverRoot: View {
         if let err = sleepManager.lastError, !isOn { return true }
         if let note = sleepManager.foreignSleepNote, !note.isEmpty { return true }
         if let note = launchAtLogin.statusNote, !note.isEmpty { return true }
+        if keyboardShortcut.needsPermission { return true }
         return false
     }
 
@@ -506,6 +518,18 @@ private struct PopoverRoot: View {
                     .font(.system(size: 10))
                     .foregroundStyle(Palette.orange)
                     .lineLimit(2)
+            }
+            if keyboardShortcut.needsPermission {
+                Button {
+                    keyboardShortcut.openAccessibilitySettings()
+                } label: {
+                    Text("Shortcut ←→↑↓ + Space needs Accessibility access — open Settings")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Palette.orange)
+                        .underline()
+                }
+                .buttonStyle(.plain)
+                .help("System Settings → Privacy & Security → Accessibility → turn on MacStayOn")
             }
         }
         .frame(maxWidth: 900, alignment: .leading)
