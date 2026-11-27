@@ -384,12 +384,12 @@ private struct GuideView: View {
             Text("To turn off (no password needed):")
                 .font(.system(size: 13, weight: .semibold))
             LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], spacing: 8) {
-                Chip(symbol: "moon.zzz.fill", text: "**Restore** in the menu")
+                Chip(symbol: "moon.zzz.fill", text: "**Restore Normal Sleep** in the menu")
                 Chip(symbol: "keyboard", text: "Hold **← → ↑ ↓ + Space**")
                 Chip(symbol: "power", text: "**Quit** MacStayOn")
             }
             InfoRow(symbol: "thermometer.medium", tint: GuidePalette.orange,
-                    text: "Closing the lid? Keep the Mac out of bags and blankets. **Heat & batt.** turns Stay Awake off at low battery or serious heat.")
+                    text: "Closing the lid? Keep the Mac out of bags and blankets. The **heat and battery guard** turns Stay Awake off at low battery or serious heat.")
         }
     }
 

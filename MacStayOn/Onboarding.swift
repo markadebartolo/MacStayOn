@@ -53,6 +53,10 @@ enum LaunchGuideDecider {
 /// Highlights shown on the "updated" screen, newest first.
 enum WhatsNew {
     static let releases: [(version: String, notes: [String])] = [
+        ("1.5.8", [
+            "A cleaner, easier-to-read menu: a small panel right under the moon icon instead of a wide strip. The status card on top is navy when off and amber when on, with the main button inside it.",
+            "Settings sit in two groups, While Stay Awake is on and App, with Guide, Updates and Quit at the bottom.",
+        ]),
         ("1.5.7", [
             "Fixed: after MacStayOn had been open for about a day, Stay Awake could fail to turn on with \"Unknown error (-1757)\", and update checks stopped. It no longer wears down the longer it stays open.",
         ]),

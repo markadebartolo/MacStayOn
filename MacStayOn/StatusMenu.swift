@@ -2,8 +2,8 @@ import AppKit
 import Combine
 import SwiftUI
 
-/// The menu bar item (moon / sun) and the panel it opens, centered just under
-/// the menu bar. Built on NSStatusItem + NSPanel instead of SwiftUI's
+/// The menu bar item (moon / sun) and the panel it opens, just under the icon
+/// like a menu. Built on NSStatusItem + NSPanel instead of SwiftUI's
 /// MenuBarExtra so other places — the Dock icon, the Dock menu, the app menu —
 /// can open the same panel; MenuBarExtra can't be opened from code.
 @MainActor
@@ -95,7 +95,7 @@ final class StatusMenuController: NSObject, NSWindowDelegate {
         return panel
     }
 
-    /// Size the panel to the strip (confirms and notes change its height).
+    /// Size the panel to its content (prompts and notes change its height).
     /// Always deferred to the next run loop turn and only when it changed.
     private func scheduleFit() {
         guard !resizeScheduled else { return }
@@ -112,22 +112,28 @@ final class StatusMenuController: NSObject, NSWindowDelegate {
         let size = hosting.fittingSize
         if abs(panel.frame.width - size.width) > 0.5 || abs(panel.frame.height - size.height) > 0.5 {
             panel.setContentSize(size)
+            // The shadow follows the rounded corners; recompute it for the new size.
+            panel.invalidateShadow()
         }
         position(panel)
     }
 
-    /// Centered horizontally, just under the menu bar (or the notch band in
-    /// full-screen apps), on the screen with the menu bar item.
+    /// Just under the menu bar (or the notch band in full-screen apps), centered
+    /// on the menu bar icon like a menu and kept on screen. From the Dock it
+    /// opens in the same place, so it's always clear where it comes from.
     private func position(_ panel: NSPanel) {
+        let iconFrame = statusItem.button?.window?.frame
         guard let screen = statusItem.button?.window?.screen ?? NSScreen.main ?? NSScreen.screens.first else { return }
         let size = panel.frame.size
         let top = min(screen.visibleFrame.maxY, screen.frame.maxY - screen.safeAreaInsets.top) - 6
-        let origin = NSPoint(x: (screen.frame.midX - size.width / 2).rounded(), y: (top - size.height).rounded())
+        let origin = NSPoint(
+            x: MenuPanelPlacement.x(width: size.width, iconFrame: iconFrame, screenFrame: screen.visibleFrame).rounded(),
+            y: (top - size.height).rounded()
+        )
         // Only move when it actually changes: every move is a layout pass.
         guard abs(panel.frame.origin.x - origin.x) > 0.5 || abs(panel.frame.origin.y - origin.y) > 0.5 else { return }
         panel.setFrameOrigin(origin)
     }
-
 
     /// Closes like a menu: a click in another app, Esc, the menu bar item again,
     /// or switching to another app. (Not on losing key focus — that also
@@ -160,7 +166,7 @@ final class StatusMenuController: NSObject, NSWindowDelegate {
     }
 }
 
-/// Hosting view that reports when the strip's natural size changes.
+/// Hosting view that reports when the panel's natural size changes.
 private final class SizingHostingView: NSHostingView<AnyView> {
     var onContentSizeChange: (() -> Void)?
 

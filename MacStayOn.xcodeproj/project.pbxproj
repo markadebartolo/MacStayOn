@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		06D640298DF4FD8DF96B1ADA /* DockMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 286B64A73B78C95F5973F5AD /* DockMenu.swift */; };
+		1CF982DDCB0AF029FD7DC60C /* MenuPanelPlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE4B253D745E954E9B459C67 /* MenuPanelPlacement.swift */; };
 		23E69C3E8F342E6772B8943B /* KeyboardShortcut.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1A53BFFA9822DE7AE7F59D /* KeyboardShortcut.swift */; };
 		25AD5BC91D823C8AC367BD10 /* LampOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C536038A4315C1801E0E6F7 /* LampOverlay.swift */; };
 		2A2BCF354216A62CCB62DD78 /* PrivilegedScriptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E2FCBC3F6509D33A94F3C0 /* PrivilegedScriptTests.swift */; };
@@ -43,6 +44,7 @@
 		CC0BF5BEC26370B5DDD51AD0 /* KeyboardShortcutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E60C30B29DCC396C68532FA /* KeyboardShortcutTests.swift */; };
 		CF5441FAD4A0177026D767B5 /* LampView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73FA91D9A573DF4E78899505 /* LampView.swift */; };
 		D3F986FA38A21A94925F5AC8 /* LampOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C536038A4315C1801E0E6F7 /* LampOverlay.swift */; };
+		E088F3D307B74199CA91AB5B /* MenuPanelPlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE4B253D745E954E9B459C67 /* MenuPanelPlacement.swift */; };
 		E093F6196C8D15DCC84E61F5 /* ParsingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 995FB150C6E8801985074DEA /* ParsingTests.swift */; };
 		E23FA7627CD304D5311482E8 /* Onboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94B1E50128192B0E52ADC3EB /* Onboarding.swift */; };
 		E44F7C45940755ACBA619D3A /* ProcessRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFC87360FF69778D56D66609 /* ProcessRunnerTests.swift */; };
@@ -53,6 +55,7 @@
 		F4A203C6768F9BA4149682A0 /* LaunchAtLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E1252DC44B29CF94F5812E2 /* LaunchAtLogin.swift */; };
 		F5594E73DB01BF9B4EA9F159 /* GuidePermissions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 904F1CA62E9F1F5AD50094D8 /* GuidePermissions.swift */; };
 		F829DE180E0AEF1C4949D1BD /* DisplayDarkenOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B184CC33D848ECAD058D8DB /* DisplayDarkenOverlay.swift */; };
+		F90F72601BB9BE40E09AF470 /* MenuPanelPlacementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29E9A92B622052374CF976F7 /* MenuPanelPlacementTests.swift */; };
 		F92B6F7B687EB64657117621 /* HardwareProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27B3C8D004F277239D200C6C /* HardwareProfile.swift */; };
 		FA8CDD05B8A989783919DBF0 /* ProcessRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC942E6C2132520704B00FE8 /* ProcessRunner.swift */; };
 		FE32EDAF8A7800965EBF4CCC /* SessionAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29FE82A6B2D548C210FA377A /* SessionAnalytics.swift */; };
@@ -68,6 +71,7 @@
 		25AB80C519C1F0D8850950B5 /* MacStayOn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacStayOn.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		27B3C8D004F277239D200C6C /* HardwareProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareProfile.swift; sourceTree = "<group>"; };
 		286B64A73B78C95F5973F5AD /* DockMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockMenu.swift; sourceTree = "<group>"; };
+		29E9A92B622052374CF976F7 /* MenuPanelPlacementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuPanelPlacementTests.swift; sourceTree = "<group>"; };
 		29FE82A6B2D548C210FA377A /* SessionAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionAnalytics.swift; sourceTree = "<group>"; };
 		2D114C7D8FD0580CC98FE07A /* ScreenFlashAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenFlashAlert.swift; sourceTree = "<group>"; };
 		3C4A71BAB6D3D1020EEB6AFC /* SparkleUpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdateController.swift; sourceTree = "<group>"; };
@@ -95,6 +99,7 @@
 		C93BFDA304B47741EB909576 /* OnboardingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingTests.swift; sourceTree = "<group>"; };
 		CFC87360FF69778D56D66609 /* ProcessRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessRunnerTests.swift; sourceTree = "<group>"; };
 		DD81DF72ADB6F9916C297486 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		DE4B253D745E954E9B459C67 /* MenuPanelPlacement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuPanelPlacement.swift; sourceTree = "<group>"; };
 		E967C7C56123E770A37A4906 /* StatusMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusMenu.swift; sourceTree = "<group>"; };
 		EF158FFE4308ECB5751ADE98 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		F1378A0C9EA04E1E761593A9 /* GuideWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuideWindow.swift; sourceTree = "<group>"; };
@@ -120,6 +125,7 @@
 				B78B8661F3EDB2A46ED29A92 /* DockMenuTests.swift */,
 				4E60C30B29DCC396C68532FA /* KeyboardShortcutTests.swift */,
 				58E95FE9BD2BF13E15BBFCE5 /* LampOverlayTests.swift */,
+				29E9A92B622052374CF976F7 /* MenuPanelPlacementTests.swift */,
 				C93BFDA304B47741EB909576 /* OnboardingTests.swift */,
 				995FB150C6E8801985074DEA /* ParsingTests.swift */,
 				50E2FCBC3F6509D33A94F3C0 /* PrivilegedScriptTests.swift */,
@@ -151,6 +157,7 @@
 				63BFA15901EA4552DFB5ED84 /* MacStayOn-Bridging-Header.h */,
 				5D5B0E6326B2762E8D6D6FBC /* MacStayOn.entitlements */,
 				C1286037094980442A8B90FA /* MacStayOnApp.swift */,
+				DE4B253D745E954E9B459C67 /* MenuPanelPlacement.swift */,
 				94B1E50128192B0E52ADC3EB /* Onboarding.swift */,
 				41AF605B3F140A8DA38BC681 /* PrivilegedScripts.swift */,
 				BC942E6C2132520704B00FE8 /* ProcessRunner.swift */,
@@ -293,6 +300,8 @@
 				CF5441FAD4A0177026D767B5 /* LampView.swift in Sources */,
 				54E736EB1CC4E741F651A3A8 /* LidAngleMonitor.swift in Sources */,
 				3CBDE4E2FC5257128853E845 /* LidMonitor.swift in Sources */,
+				1CF982DDCB0AF029FD7DC60C /* MenuPanelPlacement.swift in Sources */,
+				F90F72601BB9BE40E09AF470 /* MenuPanelPlacementTests.swift in Sources */,
 				5EC966C1118F3968F359FDD9 /* Onboarding.swift in Sources */,
 				EFD7A5456E56A54BCF03BD43 /* OnboardingTests.swift in Sources */,
 				E093F6196C8D15DCC84E61F5 /* ParsingTests.swift in Sources */,
@@ -327,6 +336,7 @@
 				8CEFDAA5508E9FEF5B82C339 /* LidAngleMonitor.swift in Sources */,
 				541567C97E61A0C6862FF6D1 /* LidMonitor.swift in Sources */,
 				7DF07DAB6995A0E7A56D2F13 /* MacStayOnApp.swift in Sources */,
+				E088F3D307B74199CA91AB5B /* MenuPanelPlacement.swift in Sources */,
 				E23FA7627CD304D5311482E8 /* Onboarding.swift in Sources */,
 				6AC62C0348F5E1D008DFF247 /* PrivilegedScripts.swift in Sources */,
 				837EF86EB724E1DA2598D4FB /* ProcessRunner.swift in Sources */,
@@ -349,7 +359,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = MacStayOn/MacStayOn.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 42;
+				CURRENT_PROJECT_VERSION = 43;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MacStayOn/Info.plist;
@@ -357,7 +367,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.5.7;
+				MARKETING_VERSION = 1.5.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.markdebartolo.MacStayOn;
 				PRODUCT_NAME = MacStayOn;
 				SDKROOT = macosx;
@@ -458,7 +468,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = MacStayOn/MacStayOn.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 42;
+				CURRENT_PROJECT_VERSION = 43;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MacStayOn/Info.plist;
@@ -466,7 +476,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.5.7;
+				MARKETING_VERSION = 1.5.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.markdebartolo.MacStayOn;
 				PRODUCT_NAME = MacStayOn;
 				SDKROOT = macosx;

@@ -169,8 +169,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-// MARK: - Horizontal top bar
+// MARK: - Menu panel
 
+/// The menu: a small panel under the menu bar icon, in the app icon's two
+/// colors. A status card on top (night navy when off, warm amber when on) holds
+/// the main button; below it, settings in two groups and app actions.
 struct PopoverRoot: View {
     @ObservedObject var sleepManager: SleepAssertionManager
     @ObservedObject var analytics: SessionAnalytics
@@ -180,112 +183,146 @@ struct PopoverRoot: View {
     let openGuide: () -> Void
     @ObservedObject private var updateReminders = SparkleUpdateReminderStore.shared
 
-    private var isOn: Bool { sleepManager.isEnabled }
+    /// Fixed width, like a menu; only the height follows the content.
+    static let width: CGFloat = 308
+
+    private var isOn: Bool {
+        #if DEBUG
+        // Debug builds only: preview the On look without turning anything on.
+        if UserDefaults.standard.bool(forKey: "MacStayOnDebugPreviewOn") { return true }
+        #endif
+        return sleepManager.isEnabled
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            mainStrip
+        VStack(alignment: .leading, spacing: 12) {
             if sleepManager.isSleepStuckWhileOff {
-                criticalStrip
+                criticalBanner
             }
-            if sleepManager.pendingEnableConfirm {
-                Divider().overlay(Palette.line)
-                enableConfirmStrip
-            } else if sleepManager.pendingLidOpenChoice {
-                Divider().overlay(Palette.line)
-                lidOpenChoiceStrip
+            statusCard
+            notes
+            group("While Stay Awake is on") {
+                darkenRow
+                rowDivider
+                guardRow
             }
-            if showsSecondaryNote {
-                Divider().overlay(Palette.line)
-                secondaryNoteStrip
+            group("App") {
+                glowRow
+                rowDivider
+                loginRow
             }
+            footer
         }
+        .padding(12)
+        .frame(width: Self.width, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Palette.panel))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Palette.panelEdge, lineWidth: 1)
+        )
         .onAppear {
             launchAtLogin.refresh()
             keyboardShortcut.refreshPermission()
-        }
-        // Size to content so ON (longer button/session) never clips Quit;
-        // the panel recenters itself when its width changes.
-        .fixedSize(horizontal: true, vertical: false)
-        .background(Palette.panel.ignoresSafeArea())
-    }
-
-    private var showsSecondaryNote: Bool {
-        if sleepManager.pendingEnableConfirm || sleepManager.pendingLidOpenChoice { return false }
-        if let err = sleepManager.lastError, !isOn { return true }
-        if let note = sleepManager.foreignSleepNote, !note.isEmpty { return true }
-        if let note = launchAtLogin.statusNote, !note.isEmpty { return true }
-        if keyboardShortcut.needsPermission { return true }
-        return false
-    }
-
-    // MARK: Main horizontal strip
-
-    private var mainStrip: some View {
-        HStack(alignment: .center, spacing: 8) {
-            brandCluster
-            thinDivider
-            statusCluster
-            if !sleepManager.pendingEnableConfirm && !sleepManager.pendingLidOpenChoice {
-                primaryAction
+            #if DEBUG
+            // Debug builds only: check the light or dark look without changing System Settings.
+            switch UserDefaults.standard.string(forKey: "MacStayOnDebugAppearance") {
+            case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)
+            case "light": NSApp.appearance = NSAppearance(named: .aqua)
+            default: break
             }
-            thinDivider
-            darkenControl
-            thinDivider
-            lampControl
-            thinDivider
-            guardControl
-            thinDivider
-            launchAtLoginControl
-            thinDivider
-            sessionChip
-            thinDivider
-            guideControl
-            updateControl
-            thinDivider
-            quitControl
+            #endif
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .frame(minHeight: 56)
     }
 
-    private var brandCluster: some View {
-        HStack(spacing: 8) {
-            ZStack {
-                Circle()
-                    .fill(isOn ? Palette.orange : Palette.iconFill)
-                    .frame(width: 28, height: 28)
-                Image(systemName: isOn ? "bolt.fill" : "moon.zzz.fill")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
-            VStack(alignment: .leading, spacing: 1) {
-                Text("MacStayOn")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Palette.text)
+    // MARK: Status card
+
+    /// Colors on the status card: white on navy when off, dark ink on amber when on.
+    private var cardText: Color { isOn ? Palette.ink : .white }
+    private var cardSubtext: Color { isOn ? Palette.ink.opacity(0.78) : Palette.onNavySoft }
+
+    private var statusCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(isOn ? Palette.ink.opacity(0.12) : Color.white.opacity(0.14))
+                        .frame(width: 34, height: 34)
+                    // Same symbols as the menu bar icon: sun when on, moon when off.
+                    Image(systemName: isOn ? "sun.max.fill" : "moon.zzz.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(isOn ? Palette.ink : Palette.amber)
+                }
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(statusHeadline)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(cardText)
+                        .lineLimit(1)
+                    Text(statusDetail)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(cardSubtext)
+                        .lineLimit(1)
+                    if let lastSession {
+                        Text(lastSession)
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(cardSubtext)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 6)
                 Text(isOn ? "ON" : "OFF")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(isOn ? Palette.orange : Palette.secondary)
+                    .font(.system(size: 10, weight: .heavy))
+                    .tracking(0.6)
+                    .foregroundStyle(cardText)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(isOn ? Palette.ink.opacity(0.12) : Color.white.opacity(0.16)))
+            }
+            if sleepManager.pendingEnableConfirm {
+                enableConfirm
+            } else if sleepManager.pendingLidOpenChoice {
+                lidOpenChoice
+            } else {
+                VStack(spacing: 7) {
+                    primaryAction
+                    actionHint
+                }
             }
         }
-        .fixedSize()
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(isOn ? Palette.amber : Palette.navy)
+        )
     }
 
-    private var statusCluster: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(statusHeadline)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Palette.text)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-            Text(powerLineShort)
-                .font(.system(size: 11))
-                .foregroundStyle(Palette.secondary)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
+    private var statusHeadline: String {
+        if sleepManager.isAwaitingAdminApproval { return "Waiting for approval" }
+        if sleepManager.pendingEnableConfirm { return "Turn on Stay Awake?" }
+        if sleepManager.pendingLidOpenChoice { return "Lid opened" }
+        if !isOn { return "Normal sleep" }
+        return sleepManager.darkenDisplay ? "Staying awake, screen dark" : "Staying awake"
+    }
+
+    private var statusDetail: String {
+        if sleepManager.isAwaitingAdminApproval { return "Use Touch ID or your password" }
+        if isOn, analytics.isLive {
+            return "For \(SessionAnalytics.formatDuration(analytics.elapsed)) · \(powerText)"
         }
-        .fixedSize()
+        let machine = sleepManager.machineLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        // "MacBook Pro · M5 Max" → "M5 Max"
+        let chip = machine.split(separator: "·").last.map { $0.trimmingCharacters(in: .whitespaces) } ?? ""
+        return chip.isEmpty ? powerText : "\(chip) · \(powerText)"
+    }
+
+    private var lastSession: String? {
+        guard !isOn, !sleepManager.isAwaitingAdminApproval, analytics.hasSummary else { return nil }
+        return "Last session: \(SessionAnalytics.formatDuration(analytics.elapsed))"
+    }
+
+    private var powerText: String {
+        if sleepManager.onACPower { return "Power adapter" }
+        if let percent = sleepManager.batteryPercent { return "Battery \(percent)%" }
+        return "Battery"
     }
 
     private var primaryAction: some View {
@@ -299,458 +336,443 @@ struct PopoverRoot: View {
             HStack(spacing: 6) {
                 Image(systemName: isOn ? "moon.zzz.fill" : "bolt.fill")
                 Text(primaryActionTitle)
-                    .fontWeight(.semibold)
             }
-            .font(.system(size: 13))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            // Keep Off/On capsules the same width so the strip doesn’t jump.
-            .frame(minWidth: 128)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(isOn ? Palette.iconFill : Palette.orange)
-            )
         }
-        .buttonStyle(.plain)
+        // Off: an amber button on the navy card. On: a navy button on the amber card.
+        .buttonStyle(CardButtonStyle(kind: isOn ? .navy : .amber, large: true))
         .keyboardShortcut(.defaultAction)
         .disabled(sleepManager.isAwaitingAdminApproval)
         .opacity(sleepManager.isAwaitingAdminApproval ? 0.7 : 1)
-        .help(isOn ? "Restore normal sleep & screensaver" : "Stay awake with lid open or closed")
-        .fixedSize()
+        .help(isOn ? "Turn Stay Awake off and restore normal sleep and the screensaver"
+                   : "Stay awake with the lid open or closed")
     }
 
     private var primaryActionTitle: String {
-        if isOn { return "Restore" }
+        if isOn { return "Restore Normal Sleep" }
         if sleepManager.isAwaitingAdminApproval { return "Approve…" }
         return sleepManager.needsUserReEnable ? "Turn On" : "Stay Awake"
     }
 
-    private var darkenControl: some View {
-        HStack(spacing: 6) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Darken")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(isOn ? Palette.text : Palette.secondary)
-                Text(sleepManager.darkenDisplay ? "Black" : "Lit")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Palette.secondary)
+    @ViewBuilder
+    private var actionHint: some View {
+        if keyboardShortcut.needsPermission {
+            Button {
+                keyboardShortcut.openPermissionSettings()
+            } label: {
+                Text("Set up the ← → ↑ ↓ + Space shortcut")
+                    .underline()
             }
-            Toggle("", isOn: Binding(
-                get: { sleepManager.darkenDisplay },
-                set: { sleepManager.setDarkenDisplay($0) }
-            ))
-            .labelsHidden()
-            .toggleStyle(.switch)
-            .controlSize(.mini)
-            .disabled(!isOn)
-        }
-        .fixedSize()
-        .help(isOn
-              ? (sleepManager.darkenDisplay
-                 ? "Black screen — Mac stays awake. Key/click restores."
-                 : "Optional black cover (does not sleep the display).")
-              : "Turn Stay Awake on first, then darken.")
-    }
-
-    private var lampControl: some View {
-        HStack(spacing: 6) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Glow")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Palette.text)
-                Text(lamp.showLamp ? "Shown" : "Hidden")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Palette.secondary)
-            }
-            Toggle("", isOn: Binding(
-                get: { lamp.showLamp },
-                set: { lamp.setShowLamp($0) }
-            ))
-            .labelsHidden()
-            .toggleStyle(.switch)
-            .controlSize(.mini)
-        }
-        .fixedSize()
-        .help("A quick glow and pull-chain confirmation at the top of the screen whenever Stay Awake turns on or off.")
-    }
-
-    private var guardControl: some View {
-        HStack(spacing: 6) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Heat & batt.")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Palette.text)
-                Menu {
-                    ForEach(Array(stride(from: 10, through: 50, by: 5)), id: \.self) { percent in
-                        Button("\(percent)% battery") {
-                            sleepManager.setBatteryFloor(percent)
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 3) {
-                        Text("≤\(sleepManager.batteryFloor)%")
-                            .font(.system(size: 10, weight: .medium))
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.system(size: 8, weight: .semibold))
-                    }
-                    .foregroundStyle(sleepManager.guardEnabled ? Palette.secondary : Palette.secondary.opacity(0.5))
-                }
-                .menuStyle(.borderlessButton)
-                .disabled(!sleepManager.guardEnabled)
-                .fixedSize()
-            }
-            Toggle("", isOn: Binding(
-                get: { sleepManager.guardEnabled },
-                set: { sleepManager.setGuardEnabled($0) }
-            ))
-            .labelsHidden()
-            .toggleStyle(.switch)
-            .controlSize(.mini)
-        }
-        .fixedSize()
-        .help("Turns Stay Awake off on low battery or serious heat. Off at the chosen battery %.")
-    }
-
-    private var launchAtLoginControl: some View {
-        HStack(spacing: 6) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text("At login")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Palette.text)
-                Text(launchAtLogin.isEnabled ? "Open" : "Off")
-                    .font(.system(size: 10))
-                    .foregroundStyle(launchAtLogin.needsApproval ? Palette.orange : Palette.secondary)
-            }
-            Toggle("", isOn: Binding(
-                get: { launchAtLogin.isEnabled },
-                set: { launchAtLogin.setEnabled($0) }
-            ))
-            .labelsHidden()
-            .toggleStyle(.switch)
-            .controlSize(.mini)
-        }
-        .fixedSize()
-        .help("Open MacStayOn when you log in. Stay Awake stays Off until you turn it on.")
-    }
-
-    private var sessionChip: some View {
-        Group {
-            if analytics.isLive || analytics.hasSummary {
-                HStack(spacing: 4) {
-                    Image(systemName: "clock")
-                        .font(.system(size: 9, weight: .semibold))
-                    Text(SessionAnalytics.formatDuration(analytics.elapsed))
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                }
-                .foregroundStyle(Palette.text)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Palette.chip)
-                )
-                .help(analytics.isLive ? "This Stay Awake session" : "Last Stay Awake session")
-                .fixedSize()
-            } else {
-                Text("—")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Palette.secondary)
-                    .frame(minWidth: 28)
-                    .help("No session yet")
-                    .fixedSize()
-            }
+            .buttonStyle(.plain)
+            .font(.system(size: 11.5, weight: .medium))
+            .foregroundStyle(isOn ? Palette.ink : Palette.amber)
+            .frame(maxWidth: .infinity)
+            .help("Needs Input Monitoring: System Settings → Privacy & Security → Input Monitoring → MacStayOn")
+        } else {
+            Text(isOn ? "Keeps running with the lid closed" : "or hold ← → ↑ ↓ + Space")
+                .font(.system(size: 11.5))
+                .foregroundStyle(cardSubtext)
+                .frame(maxWidth: .infinity)
         }
     }
 
-    private var updateControl: some View {
-        Button {
-            SparkleUpdateController.checkForUpdates()
-        } label: {
-            if let pending = updateReminders.pendingUpdateDisplayVersion {
-                HStack(spacing: 5) {
-                    Image(systemName: "arrow.down.circle.fill")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text("Update \(pending)")
-                        .font(.system(size: 12, weight: .semibold))
-                }
+    // MARK: Prompts (in the status card, in place of the main button)
+
+    private var enableConfirm: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(Palette.amber)
+                Text(HardwareProfile.enableHeatWarningTitle)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+            Text(HardwareProfile.enableHeatWarningBody)
+                .font(.system(size: 11.5))
+                .foregroundStyle(Palette.onNavySoft)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Next: approve with Touch ID or your password.")
+                .font(.system(size: 11.5, weight: .semibold))
                 .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(
-                    Capsule(style: .continuous).fill(Palette.orange)
-                )
-            } else {
-                HStack(spacing: 5) {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text("Updates")
-                        .font(.system(size: 12, weight: .semibold))
-                }
-                .foregroundStyle(Palette.secondary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(
-                    Capsule(style: .continuous).fill(Palette.chip)
-                )
+            HStack(spacing: 8) {
+                Button("Cancel") { sleepManager.cancelEnableFromMenu() }
+                    .buttonStyle(CardButtonStyle(kind: .clearOnNavy))
+                Button("Turn On") { sleepManager.confirmEnableFromMenu() }
+                    .buttonStyle(CardButtonStyle(kind: .amber))
+                    .keyboardShortcut(.defaultAction)
             }
+            .padding(.top, 2)
         }
-        .buttonStyle(.plain)
-        .help(updateReminders.pendingUpdateDisplayVersion == nil
-              ? "Check for Updates…"
-              : "Install the available MacStayOn update")
-        .fixedSize()
-        .accessibilityLabel(updateReminders.pendingUpdateDisplayVersion == nil
-                            ? "Check for Updates"
-                            : "Update MacStayOn")
     }
 
-    private var guideControl: some View {
-        Button(action: openGuide) {
-            Image(systemName: "questionmark")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(Palette.secondary)
-                .frame(width: 26, height: 26)
-                .background(Circle().fill(Palette.chip))
-        }
-        .buttonStyle(.plain)
-        .help("Guide: setup, the glow, the keyboard shortcut, and updates")
-        .accessibilityLabel("Guide")
-        .fixedSize()
-    }
-
-    private var quitControl: some View {
-        Button {
-            sleepManager.prepareForTermination()
-            NSApplication.shared.terminate(nil)
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "power")
-                    .font(.system(size: 11, weight: .semibold))
-                Text("Quit")
-                    .font(.system(size: 12, weight: .semibold))
+    private var lidOpenChoice: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Turn Stay Awake off?")
+                .font(.system(size: 12.5, weight: .semibold))
+                .foregroundStyle(cardText)
+            Text("It was on for \(sleepManager.lidOpenSessionDuration) with the lid closed. Turn it off for normal lid sleep, or keep it on.")
+                .font(.system(size: 11.5))
+                .foregroundStyle(cardSubtext)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 8) {
+                Button("Keep On") { sleepManager.confirmKeepOnAfterLidOpen() }
+                    .buttonStyle(CardButtonStyle(kind: isOn ? .clearOnAmber : .clearOnNavy))
+                Button("Turn Off") { sleepManager.confirmTurnOffAfterLidOpen() }
+                    .buttonStyle(CardButtonStyle(kind: isOn ? .navy : .amber))
+                    .keyboardShortcut(.defaultAction)
             }
-            .foregroundStyle(Palette.secondary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(
-                Capsule(style: .continuous).fill(Palette.chip)
-            )
+            .padding(.top, 2)
         }
-        .buttonStyle(.plain)
-        .keyboardShortcut("q")
-        .help("Quit MacStayOn")
-        .fixedSize()
     }
 
-    private var thinDivider: some View {
-        Rectangle()
-            .fill(Palette.line)
-            .frame(width: 1, height: 28)
-    }
-
-    // MARK: Expandable strips
-
-    private var criticalStrip: some View {
+    private var criticalBanner: some View {
         Button {
             sleepManager.requestRestoreSleepNow()
         } label: {
-            HStack(spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                Text("CRITICAL: Restore lid sleep now — approve admin (bag risk)")
-                    .fontWeight(.semibold)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Sleep is stuck off")
+                        .fontWeight(.semibold)
+                    Text("Click to restore lid sleep now (approve with Touch ID). Unsafe in a bag until fixed.")
+                        .font(.system(size: 11.5))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 Spacer(minLength: 0)
             }
-            .font(.system(size: 12))
+            .font(.system(size: 12.5))
             .foregroundStyle(.white)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(Palette.danger)
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Palette.dangerFill))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
 
-    private var enableConfirmStrip: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(Palette.orange)
-                    .padding(.top, 2)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(HardwareProfile.enableHeatWarningTitle)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Palette.text)
-                    Text(HardwareProfile.enableHeatWarningBody)
-                        .font(.system(size: 11))
-                        .foregroundStyle(Palette.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: 640, alignment: .leading)
-                    Text("Next: approve admin / Touch ID for lid-sleep settings.")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Palette.secondary)
+    // MARK: Notes
+
+    @ViewBuilder
+    private var notes: some View {
+        let error = isOn ? nil : sleepManager.lastError
+        let foreign = sleepManager.foreignSleepNote.flatMap { $0.isEmpty ? nil : $0 }
+        if !sleepManager.pendingEnableConfirm, !sleepManager.pendingLidOpenChoice, error != nil || foreign != nil {
+            VStack(alignment: .leading, spacing: 6) {
+                if let error {
+                    noteLine(symbol: "exclamationmark.circle.fill", tint: Palette.dangerText, text: error, emphasized: true)
                 }
-                Spacer(minLength: 8)
-                HStack(spacing: 8) {
-                    Button("Cancel") { sleepManager.cancelEnableFromMenu() }
-                        .buttonStyle(BarChipButtonStyle())
-                    Button("Turn On") { sleepManager.confirmEnableFromMenu() }
-                        .buttonStyle(BarPrimaryButtonStyle())
-                        .keyboardShortcut(.defaultAction)
+                if let foreign {
+                    noteLine(symbol: "info.circle", tint: Palette.secondary, text: foreign, emphasized: false)
                 }
             }
+            .padding(.horizontal, 4)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
     }
 
-    private var lidOpenChoiceStrip: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Lid opened — turn Stay Awake off?")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Palette.text)
-                Text("Was on for \(sleepManager.lidOpenSessionDuration) while closed. Turn off for normal lid sleep, or keep on.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Palette.secondary)
-                    .lineLimit(2)
+    private func noteLine(symbol: String, tint: Color, text: String, emphasized: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: symbol)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(tint)
+            Text(text)
+                .font(.system(size: 11.5, weight: emphasized ? .medium : .regular))
+                .foregroundStyle(emphasized ? tint : Palette.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    // MARK: Settings
+
+    private func group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundStyle(Palette.secondary)
+                .padding(.leading, 4)
+            VStack(spacing: 0) {
+                content()
+            }
+            .padding(.horizontal, 10)
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Palette.card))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Palette.cardEdge, lineWidth: 1)
+            )
+        }
+    }
+
+    private var rowDivider: some View {
+        Rectangle()
+            .fill(Palette.cardEdge)
+            .frame(height: 1)
+            .padding(.leading, 34)
+    }
+
+    private enum Tile { case navy, amber }
+
+    private func settingRow<Detail: View>(
+        _ title: String,
+        symbol: String,
+        tile: Tile,
+        isOn: Binding<Bool>,
+        enabled: Bool = true,
+        help: String,
+        @ViewBuilder detail: () -> Detail
+    ) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            // Icon tile, like System Settings: navy for night things, amber for heat and light.
+            Image(systemName: symbol)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(tile == .navy ? Palette.amber : Palette.ink)
+                .frame(width: 24, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(tile == .navy ? Palette.navy : Palette.amber)
+                )
+                .saturation(enabled ? 1 : 0)
+                .opacity(enabled ? 1 : 0.55)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(enabled ? Palette.text : Palette.secondary)
+                detail()
             }
             Spacer(minLength: 8)
-            Button("Keep On") { sleepManager.confirmKeepOnAfterLidOpen() }
-                .buttonStyle(BarChipButtonStyle())
-            Button("Turn Off") { sleepManager.confirmTurnOffAfterLidOpen() }
-                .buttonStyle(BarDarkButtonStyle())
-                .keyboardShortcut(.defaultAction)
+            Toggle(title, isOn: isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .tint(Palette.toggle)
+                .disabled(!enabled)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)
+        .help(help)
     }
 
-    private var secondaryNoteStrip: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            if let err = sleepManager.lastError, !isOn {
-                Text(err)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Palette.danger)
-                    .lineLimit(2)
-            }
-            if let note = sleepManager.foreignSleepNote, !note.isEmpty {
-                Text(note)
-                    .font(.system(size: 10))
-                    .foregroundStyle(Palette.secondary)
-                    .lineLimit(1)
-            }
-            if let note = launchAtLogin.statusNote, !note.isEmpty {
-                Text(note)
-                    .font(.system(size: 10))
-                    .foregroundStyle(Palette.orange)
-                    .lineLimit(2)
-            }
-            if keyboardShortcut.needsPermission {
-                Button {
-                    keyboardShortcut.openPermissionSettings()
-                } label: {
-                    Text("Shortcut ←→↑↓ + Space needs Input Monitoring — open Settings")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(Palette.orange)
-                        .underline()
+    private func detailText(_ text: String, tint: Color = Palette.secondary) -> some View {
+        Text(text)
+            .font(.system(size: 11.5))
+            .foregroundStyle(tint)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var darkenRow: some View {
+        settingRow(
+            "Darken screen",
+            symbol: "moon.fill",
+            tile: .navy,
+            isOn: Binding(get: { sleepManager.darkenDisplay }, set: { sleepManager.setDarkenDisplay($0) }),
+            enabled: isOn,
+            help: "A black cover over the screen while Stay Awake is on. The Mac stays awake; any key or click brings the screen back."
+        ) {
+            detailText(isOn ? "A key or click brings it back" : "Available once it's on")
+        }
+    }
+
+    private var guardRow: some View {
+        settingRow(
+            "Heat and battery guard",
+            symbol: "thermometer.medium",
+            tile: .amber,
+            isOn: Binding(get: { sleepManager.guardEnabled }, set: { sleepManager.setGuardEnabled($0) }),
+            help: "Turns Stay Awake off on low battery (on battery power) or serious heat."
+        ) {
+            Menu {
+                ForEach(Array(stride(from: 10, through: 50, by: 5)), id: \.self) { percent in
+                    Button("\(percent)% battery") { sleepManager.setBatteryFloor(percent) }
                 }
-                .buttonStyle(.plain)
-                .help("System Settings → Privacy & Security → Input Monitoring → turn on MacStayOn")
+            } label: {
+                Text("Off at \(sleepManager.batteryFloor)% battery")
+            }
+            .menuStyle(.borderlessButton)
+            .font(.system(size: 11.5))
+            .foregroundStyle(Palette.secondary)
+            .fixedSize()
+            .disabled(!sleepManager.guardEnabled)
+            .help("Battery level that turns Stay Awake off (on battery power). Serious heat always does.")
+        }
+    }
+
+    private var glowRow: some View {
+        settingRow(
+            "Glow confirmation",
+            symbol: "lightbulb.fill",
+            tile: .amber,
+            isOn: Binding(get: { lamp.showLamp }, set: { lamp.setShowLamp($0) }),
+            help: "A quick glow and pull-chain confirmation at the top of the screen whenever Stay Awake turns on or off."
+        ) {
+            detailText("Plays as it turns on or off")
+        }
+    }
+
+    private var loginRow: some View {
+        settingRow(
+            "Open at login",
+            symbol: "sunrise.fill",
+            tile: .navy,
+            isOn: Binding(get: { launchAtLogin.isEnabled }, set: { launchAtLogin.setEnabled($0) }),
+            help: "Open MacStayOn when you log in. Stay Awake stays off until you turn it on."
+        ) {
+            if let note = launchAtLogin.statusNote, !note.isEmpty {
+                detailText(note, tint: Palette.warningText)
+            } else {
+                detailText("Stay Awake still starts off")
             }
         }
-        .frame(maxWidth: 900, alignment: .leading)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 6)
     }
 
-    // MARK: Copy helpers
+    // MARK: Footer
 
-    private var statusHeadline: String {
-        if sleepManager.isAwaitingAdminApproval { return "Waiting for Touch ID" }
-        if sleepManager.pendingEnableConfirm { return "Confirm Stay Awake" }
-        if sleepManager.pendingLidOpenChoice { return "Lid opened" }
-        if !isOn { return "Normal sleep" }
-        if sleepManager.darkenDisplay { return "Awake · black" }
-        return "Awake · no screensaver"
-    }
-
-    /// Short machine + power line so the ON strip stays one tidy row.
-    private var powerLineShort: String {
-        let power: String
-        if sleepManager.onACPower {
-            power = "AC"
-        } else if let percent = sleepManager.batteryPercent {
-            power = "Batt \(percent)%"
-        } else {
-            power = "Battery"
+    private var footer: some View {
+        HStack(spacing: 0) {
+            Button(action: openGuide) {
+                Label("Guide", systemImage: "questionmark.circle")
+            }
+            .buttonStyle(FooterButtonStyle())
+            .help("Guide: setup, the glow, the keyboard shortcut, permissions and updates")
+            Spacer(minLength: 4)
+            updateControl
+            Spacer(minLength: 4)
+            Button {
+                sleepManager.prepareForTermination()
+                NSApplication.shared.terminate(nil)
+            } label: {
+                Label("Quit", systemImage: "power")
+            }
+            .buttonStyle(FooterButtonStyle())
+            .keyboardShortcut("q")
+            .help("Restore normal sleep and quit MacStayOn")
         }
-        let machine = sleepManager.machineLabel.trimmingCharacters(in: .whitespacesAndNewlines)
-        if machine.isEmpty { return power }
-        // Prefer chip name only (e.g. "M5 Max") when label is "MacBook Pro · M5 Max"
-        let chip = machine.split(separator: "·").map {
-            $0.trimmingCharacters(in: .whitespaces)
-        }.last ?? machine
-        return "\(chip) · \(power)"
+        .padding(.horizontal, 2)
     }
 
-    private var powerLine: String {
-        let power: String
-        if sleepManager.onACPower {
-            power = "On AC power"
-        } else if let percent = sleepManager.batteryPercent {
-            power = "On battery · \(percent)%"
+    @ViewBuilder
+    private var updateControl: some View {
+        if let pending = updateReminders.pendingUpdateDisplayVersion {
+            Button {
+                SparkleUpdateController.checkForUpdates()
+            } label: {
+                Label("Update \(pending)", systemImage: "arrow.down.circle.fill")
+            }
+            .buttonStyle(FooterButtonStyle(highlighted: true))
+            .help("Install the available MacStayOn update")
         } else {
-            power = "On battery"
+            Button {
+                SparkleUpdateController.checkForUpdates()
+            } label: {
+                Label("Updates", systemImage: "arrow.triangle.2.circlepath")
+            }
+            .buttonStyle(FooterButtonStyle())
+            .help("Check for updates. They also install by themselves while Stay Awake is off.")
         }
-        let machine = sleepManager.machineLabel.trimmingCharacters(in: .whitespacesAndNewlines)
-        if machine.isEmpty { return power }
-        return "\(machine) · \(power)"
     }
 }
 
-// MARK: - Button styles
+// MARK: - Styles
 
-private struct BarPrimaryButtonStyle: ButtonStyle {
+private struct CardButtonStyle: ButtonStyle {
+    enum Kind {
+        /// Amber with dark ink text: the action on the navy (off) card.
+        case amber
+        /// Navy with white text: the action on the amber (on) card.
+        case navy
+        /// Quiet secondary buttons on each card.
+        case clearOnNavy, clearOnAmber
+    }
+    var kind: Kind
+    var large = false
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
-            .background(Capsule(style: .continuous).fill(Palette.orange.opacity(configuration.isPressed ? 0.85 : 1)))
+            .font(.system(size: large ? 13.5 : 12.5, weight: .semibold))
+            .foregroundStyle(foreground)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, large ? 9 : 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(fill)
+                    .brightness(configuration.isPressed ? -0.06 : 0)
+            )
+            .contentShape(Rectangle())
+    }
+
+    private var foreground: Color {
+        switch kind {
+        case .amber, .clearOnAmber: return Palette.ink
+        case .navy, .clearOnNavy: return .white
+        }
+    }
+
+    private var fill: Color {
+        switch kind {
+        case .amber: return Palette.amber
+        case .navy: return Palette.navy
+        case .clearOnNavy: return Color.white.opacity(0.14)
+        case .clearOnAmber: return Palette.ink.opacity(0.10)
+        }
     }
 }
 
-private struct BarChipButtonStyle: ButtonStyle {
+private struct FooterButtonStyle: ButtonStyle {
+    var highlighted = false
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(Palette.text)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
-            .background(Capsule(style: .continuous).fill(Palette.chip.opacity(configuration.isPressed ? 0.7 : 1)))
+            .font(.system(size: 12.5, weight: .medium))
+            .labelStyle(.titleAndIcon)
+            .foregroundStyle(highlighted ? Palette.ink : Palette.text)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(highlighted ? Palette.amber : (configuration.isPressed ? Palette.card : .clear))
+            )
+            .contentShape(Rectangle())
     }
 }
 
-private struct BarDarkButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
-            .background(Capsule(style: .continuous).fill(Palette.iconFill.opacity(configuration.isPressed ? 0.85 : 1)))
-    }
-}
-
+/// Two colors from the app icon, night navy and warm amber, plus neutrals.
+/// Every text color here reads at 5:1 contrast or better on what it sits on.
 private enum Palette {
-    static let panel = Color(nsColor: .windowBackgroundColor)
+    static let navy = Color.dynamic(light: 0x223154, dark: 0x2A3B63)
+    static let amber = Color(hex: 0xF6A23C)
+    /// Dark brown text on amber.
+    static let ink = Color(hex: 0x2E1A05)
+    /// Secondary text on navy.
+    static let onNavySoft = Color(hex: 0xCFD3DC)
+
+    static let panel = Color.dynamic(light: 0xF1F1F3, dark: 0x1E1E20)
+    static let panelEdge = Color.dynamic(light: 0x000000, dark: 0xFFFFFF, alpha: 0.12)
+    static let card = Color.dynamic(light: 0xFFFFFF, dark: 0x2B2B2E)
+    static let cardEdge = Color.dynamic(light: 0x000000, dark: 0xFFFFFF, alpha: 0.07)
+
     static let text = Color(nsColor: .labelColor)
-    static let secondary = Color(nsColor: .secondaryLabelColor)
-    static let chip = Color(nsColor: .controlBackgroundColor)
-    static let line = Color(nsColor: .separatorColor).opacity(0.45)
-    static let iconFill = Color(red: 0.22, green: 0.27, blue: 0.38)
-    static let orange = Color(red: 0.96, green: 0.55, blue: 0.18)
-    static let danger = Color(red: 0.86, green: 0.28, blue: 0.24)
+    static let secondary = Color.dynamic(light: 0x5E5E63, dark: 0xA8A8AE)
+    static let toggle = Color(hex: 0xE8892A)
+    static let warningText = Color.dynamic(light: 0x9A4D00, dark: 0xF5B25A)
+    static let dangerText = Color.dynamic(light: 0xB3261E, dark: 0xFF7A70)
+    static let dangerFill = Color(hex: 0xC9372C)
+}
+
+private extension Color {
+    init(hex: UInt32, alpha: Double = 1) {
+        self.init(nsColor: NSColor(hex: hex, alpha: alpha))
+    }
+
+    /// Follows light and dark mode.
+    static func dynamic(light: UInt32, dark: UInt32, alpha: Double = 1) -> Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            return NSColor(hex: isDark ? dark : light, alpha: alpha)
+        })
+    }
+}
+
+private extension NSColor {
+    convenience init(hex: UInt32, alpha: Double) {
+        self.init(
+            srgbRed: CGFloat((hex >> 16) & 0xFF) / 255,
+            green: CGFloat((hex >> 8) & 0xFF) / 255,
+            blue: CGFloat(hex & 0xFF) / 255,
+            alpha: CGFloat(alpha)
+        )
+    }
 }
