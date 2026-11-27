@@ -33,7 +33,7 @@
 
 Close the lid and keep working. **Cursor, Claude, builds and other long-running jobs** keep going without an external display, on battery or plugged in. MacStayOn lives in the **menu bar**: one click (or one key combination) turns it on, and turning it off brings **normal lid sleep** back.
 
-> **Safety first:** a closed Mac can overheat in a bag or under a blanket. MacStayOn warns you before turning on, and the **Heat & battery** guard turns it off by itself on low battery or serious heat. On a fanless **MacBook Air** or **MacBook Neo**, the warning also advises shorter closed-lid sessions.
+> **Safety first:** a closed Mac can overheat in a bag or under a blanket. MacStayOn warns you before turning on, and the **heat and battery guard** turns it off by itself on low battery or serious heat. On a fanless **MacBook Air** or **MacBook Neo**, the warning also advises shorter closed-lid sessions.
 
 ## Features
 
@@ -43,7 +43,7 @@ Close the lid and keep working. **Cursor, Claude, builds and other long-running 
 - **Built-in guide.** A short walkthrough opens the first time you launch MacStayOn. It covers turning on, the glow, permissions and updates, and you can reopen it any time from **?** in the menu. After each update it shows what's new.
 - **Permissions, explained.** The guide lists everything MacStayOn may ask for, says why, shows whether each one is set up, and has a button to fix any that isn't.
 - **Automatic updates that never interrupt.** New versions download in the background and install **only while Stay Awake is off**. Then MacStayOn reopens with what's new.
-- **Heat & battery guard.** Turns Stay Awake off at a battery level you choose (10–50%) or on serious heat.
+- **Heat and battery guard.** Turns Stay Awake off at a battery level you choose (10–50%) or on serious heat.
 - **Darken.** Optional black cover while on; the Mac stays awake. Any key or click brings the screen back.
 - **Lid-close flash and lid-open check.** While on, the screen pulses orange as you close the lid (on Macs with a lid-angle sensor). When you open it again, MacStayOn asks whether to turn off or keep going.
 - **Bag-safe Off.** Turning off or quitting always restores normal lid sleep and removes MacStayOn's background safety helper, so nothing is left keeping the Mac awake.
@@ -96,20 +96,17 @@ MacStayOn asks for as little as it can. The guide's **Permissions** step shows t
 
 ## The menu
 
-Click the moon (sun when on) in the menu bar, or the MacStayOn icon in the Dock, for a compact strip centered at the top of the screen.
+Click the moon (sun when on) in the menu bar, or the MacStayOn icon in the Dock. A small panel opens right under the moon, in the app icon's colors: the status card on top is night navy when off and warm amber when on.
 
-| Control | What it does |
-|--------|----------------|
-| **Status** | MacStayOn **ON** / **OFF**, sleep state, Mac model and power |
-| **Stay Awake / Restore** | Turns Stay Awake on (heat note, then Touch ID) or off |
-| **Darken** | Black cover while on (the Mac stays awake). Any key or click restores the screen |
-| **Glow** | Show the glow and pull-chain confirmation on turn on and off (default on) |
-| **Heat & batt.** | Turns off at your battery floor (10–50%) or on serious heat |
-| **At login** | Open MacStayOn when you log in |
-| **Session** | How long the current or last session ran |
-| **?** | Opens the guide |
-| **Updates** | Checks for updates now. Updates normally install by themselves (see below) |
-| **Quit** | Restores normal sleep and quits |
+| Part | What it shows or does |
+|------|------------------------|
+| **Status** | Normal sleep, or Staying awake with how long it's been on, plus the chip and battery. Off, it also shows the last session |
+| **Stay Awake / Restore Normal Sleep** | The main button. Turns Stay Awake on (heat note, then Touch ID) or off. Under it: the keyboard shortcut, or a link to set it up |
+| **While on** | **Darken screen** (black cover, the Mac stays awake; any key or click brings it back) and the **heat and battery guard** (turns off at your battery level, 10–50%, or on serious heat) |
+| **App** | **Glow confirmation** on turn on and off, and **Open at login** |
+| **Guide · Updates · Quit** | The guide, a check for updates (orange when one is ready), and Quit, which restores normal sleep first |
+
+The heat warning before turning on, the "lid opened" choice and any errors show inside the panel, in place of the main button.
 
 ## Updates
 
