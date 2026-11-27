@@ -58,6 +58,37 @@ final class ProcessRunnerTests: XCTestCase {
         XCTAssertEqual(result?.stdout.count, 400_000)
     }
 
+    /// Each run used to leave one pipe open. pmset runs every few seconds, so after
+    /// about two days the app had thousands open and Turn On failed (-1757).
+    func testRunsDoNotLeakFileDescriptors() {
+        func openDescriptors() -> Int {
+            (0..<Int32(8192)).filter { fcntl($0, F_GETFD) != -1 }.count
+        }
+        _ = ProcessRunner.run(executable: "/usr/bin/true", arguments: [], timeout: 5)
+        let before = openDescriptors()
+        for _ in 0..<40 {
+            _ = ProcessRunner.run(executable: "/bin/echo", arguments: ["hi"], timeout: 5)
+        }
+        let finished = expectation(description: "background runs finished")
+        DispatchQueue.global().async {
+            for _ in 0..<40 {
+                _ = ProcessRunner.run(executable: "/bin/echo", arguments: ["hi"], timeout: 5)
+            }
+            finished.fulfill()
+        }
+        wait(for: [finished], timeout: 30)
+        _ = ProcessRunner.run(executable: "/nonexistent/tool", arguments: [], timeout: 1)
+        // A timed-out run closes its pipe too, once the killed helper's output ends.
+        for _ in 0..<3 {
+            _ = ProcessRunner.run(executable: "/bin/sleep", arguments: ["30"], timeout: 0.2)
+        }
+        let settle = Date().addingTimeInterval(3)
+        while openDescriptors() > before + 2, Date() < settle {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+        XCTAssertLessThanOrEqual(openDescriptors(), before + 2, "80+ runs should leave no pipes open")
+    }
+
     func testMainThreadKeepsServicingItsQueueWhileWaiting() {
         var mainQueueRan = false
         DispatchQueue.main.async { mainQueueRan = true }

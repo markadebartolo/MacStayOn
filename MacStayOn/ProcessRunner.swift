@@ -8,7 +8,9 @@ import Foundation
 /// - never `DispatchGroup.wait` / semaphore-wait on the main thread (the UI would
 ///   freeze for the whole timeout) — spin the RunLoop instead;
 /// - drain stdout *before* waiting for exit, so output larger than the pipe buffer
-///   cannot deadlock the child.
+///   cannot deadlock the child;
+/// - close the pipe when done: this runs every few seconds for as long as the app
+///   is open, so one leaked descriptor per run adds up.
 enum ProcessRunner {
     struct Output {
         let status: Int32
@@ -30,12 +32,19 @@ enum ProcessRunner {
         do {
             try process.run()
         } catch {
+            try? stdoutPipe.fileHandleForReading.close()
+            try? stdoutPipe.fileHandleForWriting.close()
             return nil
         }
 
         let resultBox = ResultBox()
         DispatchQueue.global(qos: .userInitiated).async {
-            let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+            let reader = stdoutPipe.fileHandleForReading
+            let data = reader.readDataToEndOfFile()
+            // Foundation doesn't close a Pipe's read end when the Pipe goes away.
+            // Left open, every pmset/ps call leaked one descriptor; after about two
+            // days the app ran out, and Turn On failed with AppleScript error -1757.
+            try? reader.close()
             process.waitUntilExit()
             resultBox.finish(Output(status: process.terminationStatus, stdout: data))
         }
